@@ -23,7 +23,8 @@ HEADERS = {
 PLANTILLAS_EQUIPOS = {
     "San Antonio Spurs": ["Victor Wembanyama", "De'Aaron Fox", "Stephon Castle", "Devin Vassell"],
     "Detroit Pistons": ["Cade Cunningham", "Jaden Ivey", "Tobias Harris", "Jalen Duren"],
-    "Cleveland Cavaliers": ["Donovan Mitchell", "Darius Garland", "Evan Mobley", "Ty Jerome"],
+    "Cleveland Cavaliers": ["Donovan Mitchell", "Darius Garland", "Evan Mobley", "Max Strus"],
+    "Memphis Grizzlies": ["Ja Morant", "Desmond Bane", "Jaren Jackson Jr.", "Ty Jerome"],
     "Indiana Pacers": ["Tyrese Haliburton", "Pascal Siakam", "Andrew Nembhard", "Myles Turner"],
     "Atlanta Hawks": ["Trae Young", "Jalen Johnson", "Dyson Daniels", "Zaccharie Risacher"],
     "Toronto Raptors": ["Scottie Barnes", "RJ Barrett", "Immanuel Quickley", "Jakob Poeltl"],
@@ -43,7 +44,7 @@ PLANTILLAS_EQUIPOS = {
 
 BENCHMARKS_JUGADORES = {
     "Victor Wembanyama": {"pts": 29.1, "3pt": 1.9, "min": 30.3, "std": 12.5, "reb": 10.2, "ast": 4.8, "b2b": False, "equipo": "San Antonio Spurs"},
-    "Ty Jerome": {"pts": 26.6, "3pt": 2.5, "min": 30.5, "std": 11.9, "reb": 3.8, "ast": 4.8, "b2b": False, "equipo": "Cleveland Cavaliers"},
+    "Ty Jerome": {"pts": 26.6, "3pt": 2.5, "min": 30.5, "std": 11.9, "reb": 3.8, "ast": 4.8, "b2b": False, "equipo": "Memphis Grizzlies"},
     "Scottie Barnes": {"pts": 23.5, "3pt": 0.5, "min": 33.4, "std": 11.8, "reb": 7.5, "ast": 5.2, "b2b": False, "equipo": "Toronto Raptors"},
     "Cade Cunningham": {"pts": 22.9, "3pt": 2.1, "min": 34.0, "std": 6.4, "reb": 6.1, "ast": 7.0, "b2b": False, "equipo": "Detroit Pistons"},
     "Zion Williamson": {"pts": 21.0, "3pt": 0.1, "min": 33.1, "std": 4.4, "reb": 5.2, "ast": 2.8, "b2b": False, "equipo": "New Orleans Pelicans"},
@@ -64,7 +65,6 @@ st.markdown("""
     .main { background-color: #0E1117; }
     h1, h2, h3 { color: #F1C40F !important; font-family: 'Helvetica Neue', sans-serif; }
     .stMetric { background-color: #1E222D; padding: 15px; border-radius: 10px; border: 1px solid #2E3440; }
-    .parlay-box { background-color: #161B22; border: 2px solid #F1C40F; border-radius: 12px; padding: 20px; margin-bottom: 25px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -74,10 +74,6 @@ def calcular_poisson_over(promedio: float, linea: float) -> float:
     for i in range(k + 1):
         prob_acumulada += (math.pow(promedio, i) * math.exp(-promedio)) / math.factorial(i)
     return max(0.0, min(1.0, 1.0 - prob_acumulada))
-
-def estimar_cuota_casa(probabilidad: float) -> float:
-    margen = 0.88
-    return max(1.15, round(1.0 / (probabilidad * margen), 2))
 
 @st.cache_data(ttl=3600)
 def obtener_partidos_espn(fecha_str: str):
@@ -176,85 +172,9 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
     df_res = pd.DataFrame(resultados).drop_duplicates(subset=['Jugador'])
     return df_res, n_juegos_total, n_equipos_total
 
-def generar_combinada_3patas_fuerte(df_data, target_cuota=2.50):
-    """Busca específicamente combinadas de 3 logros con Pisos Seguros (Prob >= 68%)."""
-    cand = df_data[(df_data['Minutos L10'] >= 25)].copy()
-    
-    selecciones = []
-    for _, fila in cand.iterrows():
-        pts_proj = fila['PTS Proyectados']
-        triples_proj = fila['Triples Prom']
-
-        # Definir Piso Seguro de Puntos
-        l_pts = None
-        if pts_proj >= 26.0:
-            l_pts = 21.5 # Piso muy seguro para estrellas (Wemby, Tatum, SGA)
-        elif pts_proj >= 21.0:
-            l_pts = 19.5 # Piso seguro para anotadores principales (Cade, Zion)
-        elif pts_proj >= 17.0:
-            l_pts = 15.5
-
-        if l_pts:
-            p_pts = calcular_poisson_over(pts_proj, l_pts)
-            if p_pts >= 0.65:
-                c_pts = estimar_cuota_casa(p_pts)
-                selecciones.append({
-                    'jugador': fila['Jugador'],
-                    'mercado': f'Over {l_pts} Puntos',
-                    'prob': p_pts,
-                    'cuota': c_pts
-                })
-
-        # Definir Piso Seguro de Triples
-        l_3pt = None
-        if triples_proj >= 3.8:
-            l_3pt = 2.5 # Piso para tiradores masivos (Curry)
-        elif triples_proj >= 2.0:
-            l_3pt = 1.5 # Piso para tiradores secundarios (Nembhard, Jerome, Quickley)
-
-        if l_3pt:
-            p_3pt = calcular_poisson_over(triples_proj, l_3pt)
-            if p_3pt >= 0.65:
-                c_3pt = estimar_cuota_casa(p_3pt)
-                selecciones.append({
-                    'jugador': fila['Jugador'],
-                    'mercado': f'Over {l_3pt} Triples',
-                    'prob': p_3pt,
-                    'cuota': c_3pt
-                })
-
-    mejores_combinadas = []
-
-    # Generar Tríos (3 Patas)
-    for i in range(len(selecciones)):
-        for j in range(i + 1, len(selecciones)):
-            for k in range(j + 1, len(selecciones)):
-                s1, s2, s3 = selecciones[i], selecciones[j], selecciones[k]
-                
-                # Evitar repetir jugadores en el mismo boleto
-                if len({s1['jugador'], s2['jugador'], s3['jugador']}) < 3:
-                    continue
-                
-                c_total = s1['cuota'] * s2['cuota'] * s3['cuota']
-                p_real = s1['prob'] * s2['prob'] * s3['prob']
-                
-                if c_total >= target_cuota:
-                    mejores_combinadas.append({
-                        'logros': [s1, s2, s3],
-                        'cuota_total': round(c_total, 2),
-                        'prob_real': p_real
-                    })
-
-    if not mejores_combinadas:
-        return None
-
-    # Ordenar por mayor probabilidad real acumulada
-    mejores_combinadas.sort(key=lambda x: x['prob_real'], reverse=True)
-    return mejores_combinadas[0]
-
 # --- CABECERA ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
-st.caption("Motor cuantitativo enfocado en Combinadas de 3 Logros con Piso Seguro (Target >= 2.50)")
+st.caption("Motor cuantitativo de escaneo en vivo para construcción táctica de boletos")
 
 # --- BARRA LATERAL ---
 st.sidebar.header("🎛️ Panel de Control")
@@ -275,8 +195,6 @@ bajas_confirmadas = st.sidebar.multiselect(
     "Selecciona los jugadores descartados (OUT):",
     options=df_raw['Jugador'].tolist() if not df_raw.empty else []
 )
-
-target_cuota_input = st.sidebar.slider("Objetivo Cuota Combinada Mínima", 2.00, 5.00, 2.50, step=0.10)
 
 if st.sidebar.button("🔄 Escanear Jornada en Vivo", use_container_width=True):
     st.cache_data.clear()
@@ -328,47 +246,6 @@ else:
 
     df_data = pd.DataFrame(procesados)
 
-    # --- COMBINADA AUTOMÁTICA DE 3 PATAS PISO SEGURO ---
-    comb_top = generar_combinada_3patas_fuerte(df_data, target_cuota=target_cuota_input)
-    
-    if comb_top:
-        st.markdown('<div class="parlay-box">', unsafe_allow_html=True)
-        st.subheader(f"🔥 COMBINADA AUTOMÁTICA RECOMENDADA DEL DÍA (3 Logros - Target $\\ge {target_cuota_input:.2f}$)")
-        st.caption("Boleto optimizado combinando 3 líneas de Piso Seguro para maximizar el retorno con probabilidades sólidas.")
-        
-        cols_logros = st.columns(len(comb_top['logros']))
-        cuotas_reales_ingresadas = []
-
-        for idx, logro in enumerate(comb_top['logros']):
-            with cols_logros[idx]:
-                st.markdown(f"**Logro {idx+1}:** {logro['jugador']}")
-                st.markdown(f"🎯 *{logro['mercado']}*")
-                st.caption(f"Prob. Modelo: {logro['prob']*100:.1f}%")
-                
-                c_real_val = st.number_input(
-                    f"Cuota Rushbet ({logro['jugador'][:8]}...)",
-                    min_value=1.01,
-                    value=float(logro['cuota']),
-                    step=0.02,
-                    key=f"cuota_real_banner_{idx}"
-                )
-                cuotas_reales_ingresadas.append(c_real_val)
-                
-        st.markdown("---")
-        
-        cuota_total_real = 1.0
-        for c in cuotas_reales_ingresadas:
-            cuota_total_real *= c
-            
-        prob_rush_real = (1.0 / cuota_total_real) * 100
-        ev_gain_real = (comb_top['prob_real'] * 100) - prob_rush_real
-
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Cuota Combinada Rushbet", f"@{cuota_total_real:.2f}")
-        m2.metric("Probabilidad Real Acumulada", f"{comb_top['prob_real']*100:.1f}%")
-        m3.metric("Ventaja Matemática REAL (+EV)", f"{ev_gain_real:+.1f}%", delta_color="normal" if ev_gain_real > 0 else "inverse")
-        st.markdown('</div>', unsafe_allow_html=True)
-
     # --- MÉTRICAS GENERALES ---
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Partidos Hoy", f"{n_juegos}")
@@ -403,31 +280,35 @@ else:
         hide_index=True
     )
 
-    # --- SIMULADOR MANUAL ---
+    # --- SIMULADOR MANUAL INTERACTIVO ---
     st.markdown("---")
     st.subheader("🧮 Simulador de Combinada Manual (+EV)")
-    st.caption("Prueba alternativas ingresando cuotas específicas de Rushbet.")
+    st.caption("Selecciona los 2 o 3 logros que quieras probar y digita las cuotas reales de Rushbet para auditar el boleto.")
     
-    col_c1, col_c2 = st.columns(2)
+    col_c1, col_c2, col_c3 = st.columns(3)
     with col_c1:
         j1 = st.selectbox("Selección 1 (Jugador)", df_mostrar['Jugador'].tolist(), index=0)
-        c1 = st.number_input(f"Cuota en Rushbet para {j1}", min_value=1.01, value=1.75, step=0.05)
+        c1 = st.number_input(f"Cuota Rushbet ({j1[:8]}...)", min_value=1.01, value=1.40, step=0.05)
     with col_c2:
         j2 = st.selectbox("Selección 2 (Jugador)", df_mostrar['Jugador'].tolist(), index=min(1, len(df_mostrar)-1))
-        c2 = st.number_input(f"Cuota en Rushbet para {j2}", min_value=1.01, value=1.65, step=0.05)
-        
+        c2 = st.number_input(f"Cuota Rushbet ({j2[:8]}...)", min_value=1.01, value=1.45, step=0.05)
+    with col_c3:
+        j3 = st.selectbox("Selección 3 (Jugador - Opcional)", ["-- Ninguno --"] + df_mostrar['Jugador'].tolist(), index=0)
+        c3 = st.number_input("Cuota Rushbet (Tercer Logro)", min_value=1.01, value=1.30, step=0.05) if j3 != "-- Ninguno --" else 1.0
+
     p1 = df_mostrar[df_mostrar['Jugador'] == j1]['Prob >19.5 PTS (%)'].values[0] / 100
     p2 = df_mostrar[df_mostrar['Jugador'] == j2]['Prob >1.5 Triples (%)'].values[0] / 100
-    
-    cuota_total = c1 * c2
-    prob_real = p1 * p2
+    p3 = (df_mostrar[df_mostrar['Jugador'] == j3]['Prob >19.5 PTS (%)'].values[0] / 100) if j3 != "-- Ninguno --" else 1.0
+
+    cuota_total = c1 * c2 * c3
+    prob_real = p1 * p2 * p3
     prob_rushbet = 1 / cuota_total
     ev_margin = (prob_real - prob_rushbet) * 100
 
     col_res1, col_res2, col_res3 = st.columns(3)
-    col_res1.metric("Cuota Combinada", f"{cuota_total:.2f}")
-    col_res2.metric("Probabilidad Real", f"{prob_real*100:.1f}%")
-    col_res3.metric("Ventaja (+EV)", f"{ev_margin:+.1f}%", delta_color="normal" if ev_margin > 0 else "inverse")
+    col_res1.metric("Cuota Combinada Real", f"@{cuota_total:.2f}")
+    col_res2.metric("Probabilidad Real Acumulada", f"{prob_real*100:.1f}%")
+    col_res3.metric("Ventaja Matemática REAL (+EV)", f"{ev_margin:+.1f}%", delta_color="normal" if ev_margin > 0 else "inverse")
 
     csv = df_mostrar.to_csv(index=False).encode('utf-8')
     st.download_button(
