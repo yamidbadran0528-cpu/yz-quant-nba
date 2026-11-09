@@ -41,22 +41,23 @@ PLANTILLAS_EQUIPOS = {
     "Minnesota Timberwolves": ["Anthony Edwards", "Julius Randle", "Rudy Gobert", "Naz Reid"],
 }
 
+# Benchmarks ajustados con promedios reales de triples
 BENCHMARKS_JUGADORES = {
-    "Victor Wembanyama": {"pts": 29.1, "3pt": 1.9, "min": 30.3, "std": 12.5, "reb": 10.2, "ast": 4.8, "b2b": False},
-    "Ty Jerome": {"pts": 26.6, "3pt": 2.5, "min": 30.5, "std": 11.9, "reb": 3.8, "ast": 4.8, "b2b": False},
-    "Scottie Barnes": {"pts": 23.5, "3pt": 0.5, "min": 33.4, "std": 11.8, "reb": 7.5, "ast": 5.2, "b2b": False},
-    "Cade Cunningham": {"pts": 22.9, "3pt": 2.1, "min": 34.0, "std": 6.4, "reb": 6.1, "ast": 7.0, "b2b": False},
-    "Zion Williamson": {"pts": 21.0, "3pt": 0.3, "min": 33.1, "std": 4.4, "reb": 5.2, "ast": 2.8, "b2b": False},
-    "Jalen Johnson": {"pts": 19.8, "3pt": 1.0, "min": 33.1, "std": 6.1, "reb": 9.8, "ast": 6.5, "b2b": False},
-    "Evan Mobley": {"pts": 18.4, "3pt": 2.1, "min": 32.8, "std": 5.0, "reb": 8.5, "ast": 3.3, "b2b": False},
-    "Trae Young": {"pts": 18.4, "3pt": 1.8, "min": 35.1, "std": 6.1, "reb": 3.1, "ast": 9.2, "b2b": False},
-    "Dylan Harper": {"pts": 18.1, "3pt": 1.2, "min": 31.9, "std": 4.1, "reb": 4.5, "ast": 5.3, "b2b": False},
-    "Andrew Nembhard": {"pts": 17.8, "3pt": 2.5, "min": 33.1, "std": 4.7, "reb": 3.2, "ast": 5.8, "b2b": False},
-    "Immanuel Quickley": {"pts": 17.4, "3pt": 2.4, "min": 31.8, "std": 5.2, "reb": 3.8, "ast": 5.1, "b2b": False},
-    "Jayson Tatum": {"pts": 26.4, "3pt": 2.8, "min": 31.8, "std": 6.6, "reb": 5.8, "ast": 7.6, "b2b": False},
-    "Stephen Curry": {"pts": 25.2, "3pt": 4.2, "min": 32.0, "std": 5.8, "reb": 4.5, "ast": 6.1, "b2b": False},
-    "Shai Gilgeous-Alexander": {"pts": 28.5, "3pt": 1.8, "min": 34.2, "std": 5.1, "reb": 5.5, "ast": 6.2, "b2b": False},
-    "Giannis Antetokounmpo": {"pts": 29.8, "3pt": 0.4, "min": 33.8, "std": 6.2, "reb": 11.5, "ast": 5.8, "b2b": False},
+    "Victor Wembanyama": {"pts": 29.1, "3pt": 1.9, "min": 30.3, "std": 12.5, "reb": 10.2, "ast": 4.8, "b2b": False, "equipo": "San Antonio Spurs"},
+    "Ty Jerome": {"pts": 26.6, "3pt": 2.5, "min": 30.5, "std": 11.9, "reb": 3.8, "ast": 4.8, "b2b": False, "equipo": "Cleveland Cavaliers"},
+    "Scottie Barnes": {"pts": 23.5, "3pt": 0.5, "min": 33.4, "std": 11.8, "reb": 7.5, "ast": 5.2, "b2b": False, "equipo": "Toronto Raptors"},
+    "Cade Cunningham": {"pts": 22.9, "3pt": 2.1, "min": 34.0, "std": 6.4, "reb": 6.1, "ast": 7.0, "b2b": False, "equipo": "Detroit Pistons"},
+    "Zion Williamson": {"pts": 21.0, "3pt": 0.1, "min": 33.1, "std": 4.4, "reb": 5.2, "ast": 2.8, "b2b": False, "equipo": "New Orleans Pelicans"},
+    "Jalen Johnson": {"pts": 19.8, "3pt": 1.0, "min": 33.1, "std": 6.1, "reb": 9.8, "ast": 6.5, "b2b": False, "equipo": "Atlanta Hawks"},
+    "Evan Mobley": {"pts": 18.4, "3pt": 0.6, "min": 32.8, "std": 5.0, "reb": 8.5, "ast": 3.3, "b2b": False, "equipo": "Cleveland Cavaliers"},
+    "Trae Young": {"pts": 18.4, "3pt": 1.8, "min": 35.1, "std": 6.1, "reb": 3.1, "ast": 9.2, "b2b": False, "equipo": "Atlanta Hawks"},
+    "Dylan Harper": {"pts": 18.1, "3pt": 1.2, "min": 31.9, "std": 4.1, "reb": 4.5, "ast": 5.3, "b2b": False, "equipo": "San Antonio Spurs"},
+    "Andrew Nembhard": {"pts": 17.8, "3pt": 2.5, "min": 33.1, "std": 4.7, "reb": 3.2, "ast": 5.8, "b2b": False, "equipo": "Indiana Pacers"},
+    "Immanuel Quickley": {"pts": 17.4, "3pt": 2.4, "min": 31.8, "std": 5.2, "reb": 3.8, "ast": 5.1, "b2b": False, "equipo": "Toronto Raptors"},
+    "Jayson Tatum": {"pts": 26.4, "3pt": 2.8, "min": 31.8, "std": 6.6, "reb": 5.8, "ast": 7.6, "b2b": False, "equipo": "Boston Celtics"},
+    "Stephen Curry": {"pts": 25.2, "3pt": 4.2, "min": 32.0, "std": 5.8, "reb": 4.5, "ast": 6.1, "b2b": False, "equipo": "Golden State Warriors"},
+    "Shai Gilgeous-Alexander": {"pts": 28.5, "3pt": 1.8, "min": 34.2, "std": 5.1, "reb": 5.5, "ast": 6.2, "b2b": False, "equipo": "Oklahoma City Thunder"},
+    "Giannis Antetokounmpo": {"pts": 29.8, "3pt": 0.4, "min": 33.8, "std": 6.2, "reb": 11.5, "ast": 5.8, "b2b": False, "equipo": "Milwaukee Bucks"},
 }
 
 st.markdown("""
@@ -116,7 +117,7 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
 
     resultados = []
     for nombre in jugadores_a_analizar:
-        prom_pts, prom_3pt, prom_min, std_pts, prom_pra, es_b2b = None, None, None, None, None, False
+        prom_pts, prom_3pt, prom_min, std_pts, prom_pra, es_b2b, equipo_nombre = None, None, None, None, None, False, "Desconocido"
         try:
             nba_players = players.get_players()
             coincidencias = [p for p in nba_players if p['full_name'].lower() == nombre.lower()]
@@ -138,48 +139,34 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
                     std_pts = df_l10['PTS'].std()
                     prom_pra = (df_l10['PTS'] + df_l10['REB'] + df_l10['AST']).mean()
 
-                    # Detectar si jugó ayer (Back-to-Back)
                     df['GAME_DATE'] = pd.to_datetime(df['GAME_DATE'], format='%b %d, %Y', errors='coerce')
                     fecha_hoy_dt = pd.to_datetime(fecha_str)
                     fechas_previas = df[df['GAME_DATE'] < fecha_hoy_dt]['GAME_DATE']
                     if not fechas_previas.empty:
-                        ultima_fecha = fechas_previas.max()
-                        dias_descanso = (fecha_hoy_dt - ultima_fecha).days
+                        dias_descanso = (fecha_hoy_dt - fechas_previas.max()).days
                         es_b2b = (dias_descanso == 1)
         except Exception:
             pass
 
         if prom_pts is None:
-            bm = BENCHMARKS_JUGADORES.get(nombre, {"pts": 18.5, "3pt": 1.5, "min": 30.0, "std": 5.5, "reb": 4.5, "ast": 4.0, "b2b": False})
+            bm = BENCHMARKS_JUGADORES.get(nombre, {"pts": 18.5, "3pt": 1.5, "min": 30.0, "std": 5.5, "reb": 4.5, "ast": 4.0, "b2b": False, "equipo": "Desconocido"})
             prom_pts = bm["pts"]
             prom_3pt = bm["3pt"]
             prom_min = bm["min"]
             std_pts = bm["std"]
             prom_pra = bm["pts"] + bm["reb"] + bm["ast"]
             es_b2b = bm.get("b2b", False)
-
-        # Aplicar multiplicador de fatiga B2B (-6% si jugó ayer)
-        f_fatiga = 0.94 if es_b2b else 1.00
-        pts_proyectados = prom_pts * f_fatiga
-        triples_proyectados = prom_3pt * f_fatiga
-
-        prob_pts = calcular_poisson_over(pts_proyectados, 19.5)
-        prob_3pt = calcular_poisson_over(triples_proyectados, 1.5)
-
-        estabilidad = "⭐ ALTA" if std_pts <= 6.5 else "ESTÁNDAR"
-        descanso_str = "⚠️ B2B (-6%)" if es_b2b else "🟢 NORMAL"
+            equipo_nombre = bm.get("equipo", "Desconocido")
 
         resultados.append({
             'Jugador': nombre,
+            'Equipo': equipo_nombre,
             'Minutos L10': round(prom_min, 1),
-            'PTS Prom': round(prom_pts, 1),
-            'PTS Proyectados': round(pts_proyectados, 1),
-            'Estado Carga': descanso_str,
-            'Estabilidad': estabilidad,
-            'Prob >19.5 PTS (%)': round(prob_pts * 100, 1),
-            'Triples Prom': round(prom_3pt, 1),
-            'Prob >1.5 Triples (%)': round(prob_3pt * 100, 1),
-            'PRA Promedio': round(prom_pra, 1),
+            'PTS Base': round(prom_pts, 1),
+            '3PT Base': round(prom_3pt, 1),
+            'es_b2b': es_b2b,
+            'Estabilidad': "⭐ ALTA" if std_pts <= 6.5 else "ESTÁNDAR",
+            'PRA Base': round(prom_pra, 1),
             'Varianza (std)': round(std_pts, 1)
         })
 
@@ -187,21 +174,25 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
     return df_res, n_juegos_total, n_equipos_total
 
 def generar_combinada_optima(df_data, target_cuota=2.50):
-    cand = df_data[(df_data['Estabilidad'] == "⭐ ALTA") & (df_data['Minutos L10'] >= 25) & (df_data['Estado Carga'] == "🟢 NORMAL")].copy()
+    cand = df_data[(df_data['Estabilidad'] == "⭐ ALTA") & (df_data['Minutos L10'] >= 25)].copy()
     if len(cand) < 2:
         cand = df_data[df_data['Minutos L10'] >= 25].copy()
 
     selecciones = []
     for _, fila in cand.iterrows():
+        # Puntos >19.5
         p_pts = fila['Prob >19.5 PTS (%)'] / 100.0
         if p_pts >= 0.55:
-            cuota_pts = max(1.25, round(1.0 / (p_pts * 0.90), 2))
+            cuota_pts = max(1.15, round(1.0 / (p_pts * 0.90), 2))
             selecciones.append({'jugador': fila['Jugador'], 'mercado': 'Over 19.5 Puntos', 'prob': p_pts, 'cuota': cuota_pts})
             
-        p_3pt = fila['Prob >1.5 Triples (%)'] / 100.0
-        if p_3pt >= 0.55:
-            cuota_3pt = max(1.50, round(1.0 / (p_3pt * 0.90), 2))
-            selecciones.append({'jugador': fila['Jugador'], 'mercado': 'Over 1.5 Triples', 'prob': p_3pt, 'cuota': cuota_3pt})
+        # Triples >1.5: SOLO para jugadores que promedien al menos 1.5 triples reales
+        if fila['Triples Prom'] >= 1.5:
+            p_3pt = fila['Prob >1.5 Triples (%)'] / 100.0
+            if p_3pt >= 0.55:
+                # Cuota teórica real basada en probabilidad sin piso artificial de 1.50
+                cuota_3pt = max(1.10, round(1.0 / (p_3pt * 0.90), 2))
+                selecciones.append({'jugador': fila['Jugador'], 'mercado': 'Over 1.5 Triples', 'prob': p_3pt, 'cuota': cuota_3pt})
 
     mejores_combinadas = []
     for i in range(len(selecciones)):
@@ -224,7 +215,7 @@ def generar_combinada_optima(df_data, target_cuota=2.50):
                     if c_t3 >= target_cuota:
                         mejores_combinadas.append({'logros': [s1, s2, s3], 'cuota_total': round(c_t3, 2), 'prob_real': p_r3})
 
-    if not mejoes_combinadas if 'mejoes_combinadas' in locals() else not mejores_combinadas:
+    if not mejores_combinadas:
         return None
 
     mejores_combinadas.sort(key=lambda x: x['prob_real'], reverse=True)
@@ -232,7 +223,7 @@ def generar_combinada_optima(df_data, target_cuota=2.50):
 
 # --- CABECERA ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
-st.caption("Motor cuantitativo con ajuste por Carga Física (Back-to-Back) y distribución de Poisson")
+st.caption("Motor cuantitativo con B2B y cálculo de cuotas dinámicas reales")
 
 # --- BARRA LATERAL ---
 st.sidebar.header("🎛️ Panel de Control")
@@ -244,6 +235,16 @@ fecha_defecto = now_et.date()
 fecha_seleccionada = st.sidebar.date_input("Fecha de Jornada NBA", value=fecha_defecto)
 fecha_str = fecha_seleccionada.strftime('%Y-%m-%d')
 
+with st.spinner(f"⚡ Procesando datos cuantitativos ({fecha_str})..."):
+    df_raw, n_juegos, n_equipos = cargar_datos_jornada(fecha_str)
+
+st.sidebar.markdown("---")
+st.sidebar.header("🚑 Reporte de Bajas / Lesiones")
+bajas_confirmadas = st.sidebar.multiselect(
+    "Selecciona los jugadores descartados (OUT):",
+    options=df_raw['Jugador'].tolist() if not df_raw.empty else []
+)
+
 target_cuota_input = st.sidebar.slider("Objetivo Cuota Combinada Mínima", 2.00, 5.00, 2.50, step=0.10)
 
 if st.sidebar.button("🔄 Escanear Jornada en Vivo", use_container_width=True):
@@ -253,12 +254,49 @@ if st.sidebar.button("🔄 Escanear Jornada en Vivo", use_container_width=True):
 min_minutos = st.sidebar.slider("Minutos Mínimos Promedio", 15, 36, 25)
 solo_alta_estabilidad = st.sidebar.checkbox("Mostrar solo estabilidad ⭐ ALTA", False)
 
-with st.spinner(f"⚡ Evaluando calendario, descansos y métricas cuantitativas ({fecha_str})..."):
-    df_data, n_juegos, n_equipos = cargar_datos_jornada(fecha_str)
-
-if df_data.empty:
+if df_raw.empty:
     st.warning("⚠️ No se pudieron cargar los partidos.")
 else:
+    equipos_con_baja = set()
+    for b in bajas_confirmadas:
+        eq = df_raw[df_raw['Jugador'] == b]['Equipo'].values
+        if len(eq) > 0:
+            equipos_con_baja.add(eq[0])
+
+    procesados = []
+    for _, fila in df_raw.iterrows():
+        j_nombre = fila['Jugador']
+        if j_nombre in bajas_confirmadas:
+            continue
+            
+        f_fatiga = 0.94 if fila['es_b2b'] else 1.00
+        f_usage = 1.15 if fila['Equipo'] in equipos_con_baja else 1.00
+        
+        pts_proj = fila['PTS Base'] * f_fatiga * f_usage
+        triples_proj = fila['3PT Base'] * f_fatiga * f_usage
+
+        prob_pts = calcular_poisson_over(pts_proj, 19.5)
+        prob_3pt = calcular_poisson_over(triples_proj, 1.5)
+
+        descanso_str = "⚠️ B2B (-6%)" if fila['es_b2b'] else ("🚀 USAGE (+15%)" if f_usage > 1.0 else "🟢 NORMAL")
+
+        procesados.append({
+            'Jugador': j_nombre,
+            'Equipo': fila['Equipo'],
+            'Minutos L10': fila['Minutos L10'],
+            'PTS Prom': fila['PTS Base'],
+            'PTS Proyectados': round(pts_proj, 1),
+            'Estado Carga': descanso_str,
+            'Estabilidad': fila['Estabilidad'],
+            'Prob >19.5 PTS (%)': round(prob_pts * 100, 1),
+            'Triples Prom': fila['3PT Base'],
+            'Prob >1.5 Triples (%)': round(prob_3pt * 100, 1),
+            'PRA Promedio': fila['PRA Base'],
+            'Varianza (std)': fila['Varianza (std)']
+        })
+
+    df_data = pd.DataFrame(procesados)
+
     # --- COMBINADA AUTOMÁTICA DEL DÍA ---
     comb_top = generar_combinada_optima(df_data, target_cuota=target_cuota_input)
     
