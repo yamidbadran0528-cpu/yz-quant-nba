@@ -20,44 +20,24 @@ HEADERS = {
     'Referer': 'https://www.nba.com/',
 }
 
-PLANTILLAS_EQUIPOS = {
-    "San Antonio Spurs": ["Victor Wembanyama", "De'Aaron Fox", "Stephon Castle", "Devin Vassell"],
-    "Detroit Pistons": ["Cade Cunningham", "Jaden Ivey", "Tobias Harris", "Jalen Duren"],
-    "Cleveland Cavaliers": ["Donovan Mitchell", "Darius Garland", "Evan Mobley", "Max Strus"],
-    "Memphis Grizzlies": ["Ja Morant", "Desmond Bane", "Jaren Jackson Jr.", "Ty Jerome"],
-    "Indiana Pacers": ["Tyrese Haliburton", "Pascal Siakam", "Andrew Nembhard", "Myles Turner"],
-    "Atlanta Hawks": ["Trae Young", "Jalen Johnson", "Dyson Daniels", "Zaccharie Risacher"],
-    "Toronto Raptors": ["Scottie Barnes", "RJ Barrett", "Immanuel Quickley", "Jakob Poeltl"],
-    "New Orleans Pelicans": ["Zion Williamson", "CJ McCollum", "Brandon Ingram", "DeJounte Murray"],
-    "Brooklyn Nets": ["Michael Porter Jr.", "Cam Thomas", "Dennis Schroder", "Cameron Johnson"],
-    "Houston Rockets": ["Alperen Sengun", "Jalen Green", "Fred VanVleet", "Jabari Smith Jr."],
-    "Milwaukee Bucks": ["Giannis Antetokounmpo", "Damian Lillard", "Bobby Portis", "Brook Lopez"],
-    "Golden State Warriors": ["Stephen Curry", "Jonathan Kuminga", "Buddy Hield", "Draymond Green"],
-    "Oklahoma City Thunder": ["Shai Gilgeous-Alexander", "Jalen Williams", "Chet Holmgren", "Luguentz Dort"],
-    "Boston Celtics": ["Jayson Tatum", "Jaylen Brown", "Derrick White", "Jrue Holiday"],
-    "Los Angeles Lakers": ["LeBron James", "Anthony Davis", "Austin Reaves", "D'Angelo Russell"],
-    "Phoenix Suns": ["Kevin Durant", "Devin Booker", "Bradley Beal", "Tyus Jones"],
-    "Denver Nuggets": ["Nikola Jokic", "Jamal Murray", "Aaron Gordon", "Christian Braun"],
-    "Dallas Mavericks": ["Luka Doncic", "Kyrie Irving", "Klay Thompson", "PJ Washington"],
-    "Minnesota Timberwolves": ["Anthony Edwards", "Julius Randle", "Rudy Gobert", "Naz Reid"],
-}
-
+# Base de datos cuantitativa de promedios (Los equipos se asignan de forma dinámica en vivo)
 BENCHMARKS_JUGADORES = {
-    "Victor Wembanyama": {"pts": 29.1, "3pt": 1.9, "min": 30.3, "std": 12.5, "reb": 10.2, "ast": 4.8, "b2b": False, "equipo": "San Antonio Spurs"},
-    "Ty Jerome": {"pts": 26.6, "3pt": 2.5, "min": 30.5, "std": 11.9, "reb": 3.8, "ast": 4.8, "b2b": False, "equipo": "Memphis Grizzlies"},
-    "Scottie Barnes": {"pts": 23.5, "3pt": 0.5, "min": 33.4, "std": 11.8, "reb": 7.5, "ast": 5.2, "b2b": False, "equipo": "Toronto Raptors"},
-    "Cade Cunningham": {"pts": 22.9, "3pt": 2.1, "min": 34.0, "std": 6.4, "reb": 6.1, "ast": 7.0, "b2b": False, "equipo": "Detroit Pistons"},
-    "Zion Williamson": {"pts": 21.0, "3pt": 0.1, "min": 33.1, "std": 4.4, "reb": 5.2, "ast": 2.8, "b2b": False, "equipo": "New Orleans Pelicans"},
-    "Jalen Johnson": {"pts": 19.8, "3pt": 1.0, "min": 33.1, "std": 6.1, "reb": 9.8, "ast": 6.5, "b2b": False, "equipo": "Atlanta Hawks"},
-    "Evan Mobley": {"pts": 18.4, "3pt": 0.6, "min": 32.8, "std": 5.0, "reb": 8.5, "ast": 3.3, "b2b": False, "equipo": "Cleveland Cavaliers"},
-    "Trae Young": {"pts": 18.4, "3pt": 1.8, "min": 35.1, "std": 6.1, "reb": 3.1, "ast": 9.2, "b2b": False, "equipo": "Atlanta Hawks"},
-    "Dylan Harper": {"pts": 18.1, "3pt": 1.2, "min": 31.9, "std": 4.1, "reb": 4.5, "ast": 5.3, "b2b": False, "equipo": "San Antonio Spurs"},
-    "Andrew Nembhard": {"pts": 17.8, "3pt": 2.5, "min": 33.1, "std": 4.7, "reb": 3.2, "ast": 5.8, "b2b": False, "equipo": "Indiana Pacers"},
-    "Immanuel Quickley": {"pts": 17.4, "3pt": 2.4, "min": 31.8, "std": 5.2, "reb": 3.8, "ast": 5.1, "b2b": False, "equipo": "Toronto Raptors"},
-    "Jayson Tatum": {"pts": 26.4, "3pt": 2.8, "min": 31.8, "std": 6.6, "reb": 5.8, "ast": 7.6, "b2b": False, "equipo": "Boston Celtics"},
-    "Stephen Curry": {"pts": 25.2, "3pt": 4.2, "min": 32.0, "std": 5.8, "reb": 4.5, "ast": 6.1, "b2b": False, "equipo": "Golden State Warriors"},
-    "Shai Gilgeous-Alexander": {"pts": 28.5, "3pt": 1.8, "min": 34.2, "std": 5.1, "reb": 5.5, "ast": 6.2, "b2b": False, "equipo": "Oklahoma City Thunder"},
-    "Giannis Antetokounmpo": {"pts": 29.8, "3pt": 0.4, "min": 33.8, "std": 6.2, "reb": 11.5, "ast": 5.8, "b2b": False, "equipo": "Milwaukee Bucks"},
+    "Victor Wembanyama": {"pts": 29.1, "3pt": 1.9, "min": 30.3, "std": 12.5, "reb": 10.2, "ast": 4.8, "b2b": False},
+    "De'Aaron Fox": {"pts": 24.2, "3pt": 1.9, "min": 35.1, "std": 6.8, "reb": 4.1, "ast": 6.2, "b2b": False},
+    "Ty Jerome": {"pts": 10.5, "3pt": 1.4, "min": 21.2, "std": 4.1, "reb": 2.2, "ast": 3.4, "b2b": False},
+    "Cade Cunningham": {"pts": 22.9, "3pt": 2.1, "min": 34.0, "std": 6.4, "reb": 6.1, "ast": 7.0, "b2b": False},
+    "Scottie Barnes": {"pts": 23.5, "3pt": 0.5, "min": 33.4, "std": 11.8, "reb": 7.5, "ast": 5.2, "b2b": False},
+    "Zion Williamson": {"pts": 21.0, "3pt": 0.1, "min": 33.1, "std": 4.4, "reb": 5.2, "ast": 2.8, "b2b": False},
+    "Jalen Johnson": {"pts": 19.8, "3pt": 1.0, "min": 33.1, "std": 6.1, "reb": 9.8, "ast": 6.5, "b2b": False},
+    "Evan Mobley": {"pts": 18.4, "3pt": 0.6, "min": 32.8, "std": 5.0, "reb": 8.5, "ast": 3.3, "b2b": False},
+    "Trae Young": {"pts": 18.4, "3pt": 1.8, "min": 35.1, "std": 6.1, "reb": 3.1, "ast": 9.2, "b2b": False},
+    "Andrew Nembhard": {"pts": 17.8, "3pt": 2.5, "min": 33.1, "std": 4.7, "reb": 3.2, "ast": 5.8, "b2b": False},
+    "Immanuel Quickley": {"pts": 17.4, "3pt": 2.4, "min": 31.8, "std": 5.2, "reb": 3.8, "ast": 5.1, "b2b": False},
+    "Jayson Tatum": {"pts": 26.4, "3pt": 2.8, "min": 31.8, "std": 6.6, "reb": 5.8, "ast": 7.6, "b2b": False},
+    "Stephen Curry": {"pts": 25.2, "3pt": 4.2, "min": 32.0, "std": 5.8, "reb": 4.5, "ast": 6.1, "b2b": False},
+    "Shai Gilgeous-Alexander": {"pts": 28.5, "3pt": 1.8, "min": 34.2, "std": 5.1, "reb": 5.5, "ast": 6.2, "b2b": False},
+    "Giannis Antetokounmpo": {"pts": 29.8, "3pt": 0.4, "min": 33.8, "std": 6.2, "reb": 11.5, "ast": 5.8, "b2b": False},
+    "Michael Porter Jr.": {"pts": 18.2, "3pt": 2.7, "min": 31.5, "std": 5.5, "reb": 7.0, "ast": 1.5, "b2b": False},
 }
 
 st.markdown("""
@@ -75,48 +55,57 @@ def calcular_poisson_over(promedio: float, linea: float) -> float:
         prob_acumulada += (math.pow(promedio, i) * math.exp(-promedio)) / math.factorial(i)
     return max(0.0, min(1.0, 1.0 - prob_acumulada))
 
-@st.cache_data(ttl=3600)
-def obtener_partidos_espn(fecha_str: str):
+@st.cache_data(ttl=1800)
+def obtener_rosters_espn_dinamicos(fecha_str: str):
+    """Obtiene partidos del día y rastrea qué equipo pertenece a cada jugador en tiempo real."""
     fecha_clean = fecha_str.replace('-', '')
     url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={fecha_clean}"
+    mapa_jugador_equipo = {}
+    juegos = []
+    equipos = []
+    
     try:
         res = requests.get(url, headers=HEADERS, timeout=8)
         data = res.json()
         events = data.get('events', [])
-        juegos = []
-        equipos = []
+        
         for ev in events:
             comp = ev.get('competitions', [])[0]
             competitors = comp.get('competitors', [])
+            juegos.append(ev.get('name', ''))
+            
             for c in competitors:
                 team_name = c.get('team', {}).get('displayName', '')
                 equipos.append(team_name)
-            juegos.append(ev.get('name', ''))
-        return juegos, equipos
+                
+                # Extraer atletas del equipo si vienen en la respuesta
+                athletes = c.get('leaders', [])
+                for leader in athletes:
+                    for l_item in leader.get('leaders', []):
+                        athlete_name = l_item.get('athlete', {}).get('displayName', '')
+                        if athlete_name:
+                            mapa_jugador_equipo[athlete_name] = team_name
+                            
+        return juegos, equipos, mapa_jugador_equipo
     except Exception:
-        return [], []
+        return [], [], {}
 
 @st.cache_data(ttl=1800)
 def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
-    juegos, equipos_nombres = obtener_partidos_espn(fecha_str)
+    juegos, equipos_nombres, mapa_equipos_espn = obtener_rosters_espn_dinamicos(fecha_str)
     
-    if not equipos_nombres:
-        jugadores_a_analizar = list(BENCHMARKS_JUGADORES.keys())
-        n_juegos_total = 8
-        n_equipos_total = 16
-    else:
-        n_juegos_total = len(juegos)
-        n_equipos_total = len(equipos_nombres)
-        jugadores_a_analizar = []
-        for eq in equipos_nombres:
-            if eq in PLANTILLAS_EQUIPOS:
-                jugadores_a_analizar.extend(PLANTILLAS_EQUIPOS[eq])
-        if not jugadores_a_analizar:
-            jugadores_a_analizar = list(BENCHMARKS_JUGADORES.keys())
+    n_juegos_total = len(juegos) if juegos else 8
+    n_equipos_total = len(equipos_nombres) if equipos_nombres else 16
+    jugadores_a_analizar = list(BENCHMARKS_JUGADORES.keys())
 
     resultados = []
     for nombre in jugadores_a_analizar:
-        prom_pts, prom_3pt, prom_min, std_pts, prom_pra, es_b2b, equipo_nombre = None, None, None, None, None, False, "Desconocido"
+        prom_pts, prom_3pt, prom_min, std_pts, prom_pra, es_b2b, equipo_real = None, None, None, None, None, False, "NBA Team"
+        
+        # 1. Mapeo dinámico del equipo desde ESPN o NBA API
+        if nombre in mapa_equipos_espn:
+            equipo_real = mapa_equipos_espn[nombre]
+            
         try:
             nba_players = players.get_players()
             coincidencias = [p for p in nba_players if p['full_name'].lower() == nombre.lower()]
@@ -138,6 +127,11 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
                     std_pts = df_l10['PTS'].std()
                     prom_pra = (df_l10['PTS'] + df_l10['REB'] + df_l10['AST']).mean()
 
+                    # Si el equipo no venía de ESPN, tomar el código del último partido en vivo
+                    if equipo_real == "NBA Team" and 'MATCHUP' in df.columns:
+                        matchup = df.iloc[0]['MATCHUP']
+                        equipo_real = matchup.split(' ')[0] # Ej: "CLE vs. MEM" -> "CLE"
+
                     df['GAME_DATE'] = pd.to_datetime(df['GAME_DATE'], format='%b %d, %Y', errors='coerce')
                     fecha_hoy_dt = pd.to_datetime(fecha_str)
                     fechas_previas = df[df['GAME_DATE'] < fecha_hoy_dt]['GAME_DATE']
@@ -148,18 +142,17 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
             pass
 
         if prom_pts is None:
-            bm = BENCHMARKS_JUGADORES.get(nombre, {"pts": 18.5, "3pt": 1.5, "min": 30.0, "std": 5.5, "reb": 4.5, "ast": 4.0, "b2b": False, "equipo": "Desconocido"})
+            bm = BENCHMARKS_JUGADORES.get(nombre, {"pts": 18.5, "3pt": 1.5, "min": 30.0, "std": 5.5, "reb": 4.5, "ast": 4.0, "b2b": False})
             prom_pts = bm["pts"]
             prom_3pt = bm["3pt"]
             prom_min = bm["min"]
             std_pts = bm["std"]
             prom_pra = bm["pts"] + bm["reb"] + bm["ast"]
             es_b2b = bm.get("b2b", False)
-            equipo_nombre = bm.get("equipo", "Desconocido")
 
         resultados.append({
             'Jugador': nombre,
-            'Equipo': equipo_nombre,
+            'Equipo': equipo_real,
             'Minutos L10': round(prom_min, 1),
             'PTS Base': round(prom_pts, 1),
             '3PT Base': round(prom_3pt, 1),
@@ -174,7 +167,7 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
 
 # --- CABECERA ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
-st.caption("Motor cuantitativo de escaneo en vivo para construcción táctica de boletos")
+st.caption("Motor cuantitativo con asignación dinámica de equipos en vivo")
 
 # --- BARRA LATERAL ---
 st.sidebar.header("🎛️ Panel de Control")
@@ -186,7 +179,7 @@ fecha_defecto = now_et.date()
 fecha_seleccionada = st.sidebar.date_input("Fecha de Jornada NBA", value=fecha_defecto)
 fecha_str = fecha_seleccionada.strftime('%Y-%m-%d')
 
-with st.spinner(f"⚡ Procesando datos cuantitativos ({fecha_str})..."):
+with st.spinner(f"⚡ Escaneando plantillas y proyecciones ({fecha_str})..."):
     df_raw, n_juegos, n_equipos = cargar_datos_jornada(fecha_str)
 
 st.sidebar.markdown("---")
@@ -219,7 +212,7 @@ else:
             continue
             
         f_fatiga = 0.94 if fila['es_b2b'] else 1.00
-        f_usage = 1.15 if fila['Equipo'] in equipos_con_baja else 1.00
+        f_usage = 1.15 if fila['Equipo'] in equipos_con_baja and fila['Equipo'] != "NBA Team" else 1.00
         
         pts_proj = fila['PTS Base'] * f_fatiga * f_usage
         triples_proj = fila['3PT Base'] * f_fatiga * f_usage
@@ -280,10 +273,10 @@ else:
         hide_index=True
     )
 
-    # --- SIMULADOR MANUAL INTERACTIVO ---
+    # --- SIMULADOR MANUAL ---
     st.markdown("---")
     st.subheader("🧮 Simulador de Combinada Manual (+EV)")
-    st.caption("Selecciona los 2 o 3 logros que quieras probar y digita las cuotas reales de Rushbet para auditar el boleto.")
+    st.caption("Selecciona los logros e ingresa las cuotas reales de Rushbet para auditar el boleto.")
     
     col_c1, col_c2, col_c3 = st.columns(3)
     with col_c1:
