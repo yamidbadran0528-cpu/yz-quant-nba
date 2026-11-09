@@ -50,12 +50,11 @@ def obtener_metricas_defensivas(temporada='2026-27'):
         return {}
 
 @st.cache_data(ttl=1800)
-def cargar_datos_jornada(temporada='2026-27'):
-    fecha_hoy = datetime.datetime.now().strftime('%Y-%m-%d')
+def cargar_datos_jornada(fecha_consulta: str, temporada='2026-27'):
     def_map = obtener_metricas_defensivas(temporada)
     
     try:
-        sb = scoreboardv3.ScoreboardV3(game_date=fecha_hoy)
+        sb = scoreboardv3.ScoreboardV3(game_date=fecha_consulta)
         dict_data = sb.get_dict()
         juegos = dict_data.get('scoreboard', {}).get('games', [])
     except Exception:
@@ -151,12 +150,20 @@ def cargar_datos_jornada(temporada='2026-27'):
 
 # --- CABECERA ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
-st.caption("Motor cuantitativo con Poisson y Matchup Defensivo")
+st.caption("Motor cuantitativo con distribución de Poisson y Matchup Defensivo")
 
-# --- BARRA LATERAL (CONTROLES Y BOTÓN DE ESCANEO) ---
+# --- BARRA LATERAL ---
 st.sidebar.header("🎛️ Panel de Control")
 
-# BOTÓN PARA RE-ESCANEAR LA JORNADA
+# Obtener fecha actual en hora de US/Eastern (Hora NBA)
+now_utc = datetime.datetime.now(datetime.timezone.utc)
+now_et = now_utc.astimezone(datetime.timezone(datetime.timedelta(hours=-5)))
+fecha_defecto = now_et.date()
+
+# Selector de Fecha en la Sidebar
+fecha_seleccionada = st.sidebar.date_input("Fecha de Jornada NBA", value=fecha_defecto)
+fecha_str = fecha_seleccionada.strftime('%Y-%m-%d')
+
 if st.sidebar.button("🔄 Escanear Jornada en Vivo", use_container_width=True):
     st.cache_data.clear()
     st.rerun()
@@ -165,13 +172,13 @@ min_minutos = st.sidebar.slider("Minutos Mínimos Promedio", 15, 36, 25)
 solo_alta_estabilidad = st.sidebar.checkbox("Mostrar solo estabilidad ⭐ ALTA", False)
 filtro_defensa = st.sidebar.multiselect("Defensa Rival", ["🟢 SUAVE", "🟡 NEUTRA", "🔴 DURA"], default=["🟢 SUAVE", "🟡 NEUTRA", "🔴 DURA"])
 
-with st.spinner("⚡ Procesando métricas cuantitativas de la jornada..."):
-    df_data, n_juegos, n_equipos = cargar_datos_jornada()
+with st.spinner(f"⚡ Procesando métricas cuantitativas para la fecha {fecha_str}..."):
+    df_data, n_juegos, n_equipos = cargar_datos_jornada(fecha_str)
 
 if df_data.empty:
-    st.warning("⚠️ No se detectaron partidos o datos disponibles para la fecha actual.")
+    st.warning(f"⚠️ No se detectaron partidos o datos disponibles para la fecha ({fecha_str}). Intenta cambiando la fecha en la barra lateral.")
 else:
-    # --- METRICAS CLAVE ---
+    # --- MÉTRICAS CLAVE ---
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Partidos Hoy", f"{n_juegos}")
     col2.metric("Equipos en Cancha", f"{n_equipos}")
@@ -208,10 +215,10 @@ else:
         hide_index=True
     )
 
-    # --- SIMULADOR DE COMBINADAS (+EV) ---
+    # --- SIMULADOR DE COMBINADAS ---
     st.markdown("---")
     st.subheader("🧮 Simulador de Combinada (+EV)")
-    st.caption("Selecciona 2 o 3 logros de la tabla anterior e ingresa las cuotas de Rushbet para evaluar la ventaja matemática de tu boleto.")
+    st.caption("Selecciona 2 logros de la tabla anterior e ingresa las cuotas de Rushbet para evaluar la ventaja matemática.")
     
     col_c1, col_c2 = st.columns(2)
     with col_c1:
@@ -235,11 +242,10 @@ else:
     col_res3.metric("Ventaja (+EV)", f"{ev_margin:+.1f}%", delta_color="normal" if ev_margin > 0 else "inverse")
 
     # Botón Descargar CSV
-    fecha_hoy = datetime.datetime.now().strftime('%Y-%m-%d')
     csv = df_mostrar.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Descargar Reporte Filtrado (CSV)",
         data=csv,
-        file_name=f"reporte_yz_quant_{fecha_hoy}.csv",
+        file_name=f"reporte_yz_quant_{fecha_str}.csv",
         mime="text/csv"
     )
