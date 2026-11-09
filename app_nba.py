@@ -9,8 +9,17 @@ st.set_page_config(
     page_title="YZ Quant NBA — Platform (+EV)",
     page_icon="🤖",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
+
+# Encabezados para evitar bloqueos IP de los servidores de la NBA
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Origin': 'https://www.nba.com',
+    'Referer': 'https://www.nba.com/',
+}
 
 st.markdown("""
     <style>
@@ -33,7 +42,9 @@ def obtener_metricas_defensivas(temporada='2026-27'):
         stats = leaguedashteamstats.LeagueDashTeamStats(
             season=temporada,
             measure_type_detailed_defense='Opponent',
-            per_mode_detailed='PerGame'
+            per_mode_detailed='PerGame',
+            headers=HEADERS,
+            timeout=15
         )
         df_def = stats.get_data_frames()[0]
         avg_pts = df_def['OPP_PTS'].mean()
@@ -54,7 +65,7 @@ def cargar_datos_jornada(fecha_consulta: str, temporada='2026-27'):
     def_map = obtener_metricas_defensivas(temporada)
     
     try:
-        sb = scoreboardv3.ScoreboardV3(game_date=fecha_consulta)
+        sb = scoreboardv3.ScoreboardV3(game_date=fecha_consulta, headers=HEADERS, timeout=15)
         dict_data = sb.get_dict()
         juegos = dict_data.get('scoreboard', {}).get('games', [])
     except Exception:
@@ -77,7 +88,7 @@ def cargar_datos_jornada(fecha_consulta: str, temporada='2026-27'):
     jugadores = []
     for team_id in equipos_ids:
         try:
-            roster = commonteamroster.CommonTeamRoster(team_id=team_id, season=temporada)
+            roster = commonteamroster.CommonTeamRoster(team_id=team_id, season=temporada, headers=HEADERS, timeout=15)
             df_roster = roster.get_data_frames()[0]
             top_jugadores = df_roster['PLAYER'].head(4).tolist()
             rival_id = mapa_rivales.get(team_id)
@@ -98,7 +109,7 @@ def cargar_datos_jornada(fecha_consulta: str, temporada='2026-27'):
             
         player_id = coincidencias[0]['id']
         try:
-            gamelog = playergamelog.PlayerGameLog(player_id=player_id, season=temporada)
+            gamelog = playergamelog.PlayerGameLog(player_id=player_id, season=temporada, headers=HEADERS, timeout=15)
             df = gamelog.get_data_frames()[0]
             if df.empty or len(df) < 5:
                 continue
@@ -155,12 +166,10 @@ st.caption("Motor cuantitativo con distribución de Poisson y Matchup Defensivo"
 # --- BARRA LATERAL ---
 st.sidebar.header("🎛️ Panel de Control")
 
-# Obtener fecha actual en hora de US/Eastern (Hora NBA)
 now_utc = datetime.datetime.now(datetime.timezone.utc)
 now_et = now_utc.astimezone(datetime.timezone(datetime.timedelta(hours=-5)))
 fecha_defecto = now_et.date()
 
-# Selector de Fecha en la Sidebar
 fecha_seleccionada = st.sidebar.date_input("Fecha de Jornada NBA", value=fecha_defecto)
 fecha_str = fecha_seleccionada.strftime('%Y-%m-%d')
 
@@ -176,9 +185,8 @@ with st.spinner(f"⚡ Procesando métricas cuantitativas para la fecha {fecha_st
     df_data, n_juegos, n_equipos = cargar_datos_jornada(fecha_str)
 
 if df_data.empty:
-    st.warning(f"⚠️ No se detectaron partidos o datos disponibles para la fecha ({fecha_str}). Intenta cambiando la fecha en la barra lateral.")
+    st.warning(f"⚠️ No se detectaron partidos o datos disponibles para la fecha ({fecha_str}). Abre el menú desplegable (flechitas '>>' arriba a la izquierda) y prueba cambiar la fecha.")
 else:
-    # --- MÉTRICAS CLAVE ---
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Partidos Hoy", f"{n_juegos}")
     col2.metric("Equipos en Cancha", f"{n_equipos}")
@@ -188,13 +196,11 @@ else:
 
     st.markdown("---")
 
-    # Aplicar Filtros
     df_filtrado = df_data[df_data['Minutos L10'] >= min_minutos]
     if solo_alta_estabilidad:
         df_filtrado = df_filtrado[df_filtrado['Estabilidad'] == "⭐ ALTA"]
     df_filtrado = df_filtrado[df_filtrado['Defensa Rival'].isin(filtro_defensa)]
 
-    # --- TABLA INTERACTIVA ---
     st.subheader("📊 Ranking de Valor Esperado (+EV)")
     criterio_orden = st.radio("Ordenar por:", ["Puntos (>19.5 PTS)", "Triples (>1.5 3PT)", "PRA (Combo)"], horizontal=True)
     
@@ -215,7 +221,6 @@ else:
         hide_index=True
     )
 
-    # --- SIMULADOR DE COMBINADAS ---
     st.markdown("---")
     st.subheader("🧮 Simulador de Combinada (+EV)")
     st.caption("Selecciona 2 logros de la tabla anterior e ingresa las cuotas de Rushbet para evaluar la ventaja matemática.")
@@ -241,7 +246,6 @@ else:
     col_res2.metric("Probabilidad Real", f"{prob_real*100:.1f}%")
     col_res3.metric("Ventaja (+EV)", f"{ev_margin:+.1f}%", delta_color="normal" if ev_margin > 0 else "inverse")
 
-    # Botón Descargar CSV
     csv = df_mostrar.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Descargar Reporte Filtrado (CSV)",
