@@ -76,8 +76,8 @@ def calcular_poisson_over(promedio: float, linea: float) -> float:
     return max(0.0, min(1.0, 1.0 - prob_acumulada))
 
 def estimar_cuota_casa(probabilidad: float) -> float:
-    margen = 0.90
-    return max(1.10, round(1.0 / (probabilidad * margen), 2))
+    margen = 0.88
+    return max(1.15, round(1.0 / (probabilidad * margen), 2))
 
 @st.cache_data(ttl=3600)
 def obtener_partidos_espn(fecha_str: str):
@@ -176,30 +176,27 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
     df_res = pd.DataFrame(resultados).drop_duplicates(subset=['Jugador'])
     return df_res, n_juegos_total, n_equipos_total
 
-def generar_combinada_optima_dinamica(df_data, target_cuota=2.50):
-    """Genera combinadas ajustando la línea de cada jugador para buscar cuotas individuales con valor real (@1.45 - @1.85)."""
-    cand = df_data[(df_data['Estabilidad'] == "⭐ ALTA") & (df_data['Minutos L10'] >= 25)].copy()
-    if len(cand) < 2:
-        cand = df_data[df_data['Minutos L10'] >= 25].copy()
-
+def generar_combinada_3patas_fuerte(df_data, target_cuota=2.50):
+    """Busca específicamente combinadas de 3 logros con Pisos Seguros (Prob >= 68%)."""
+    cand = df_data[(df_data['Minutos L10'] >= 25)].copy()
+    
     selecciones = []
     for _, fila in cand.iterrows():
         pts_proj = fila['PTS Proyectados']
         triples_proj = fila['Triples Prom']
 
-        # --- OPCIONES DE PUNTOS ESCALADAS DINÁMICAMENTE ---
-        lineas_pts_posibles = []
+        # Definir Piso Seguro de Puntos
+        l_pts = None
         if pts_proj >= 26.0:
-            lineas_pts_posibles = [24.5, 22.5]
+            l_pts = 21.5 # Piso muy seguro para estrellas (Wemby, Tatum, SGA)
         elif pts_proj >= 21.0:
-            lineas_pts_posibles = [19.5, 21.5]
+            l_pts = 19.5 # Piso seguro para anotadores principales (Cade, Zion)
         elif pts_proj >= 17.0:
-            lineas_pts_posibles = [15.5, 17.5]
+            l_pts = 15.5
 
-        for l_pts in lineas_pts_posibles:
+        if l_pts:
             p_pts = calcular_poisson_over(pts_proj, l_pts)
-            # Buscar cuotas con sustancia (entre 55% y 78% de probabilidad)
-            if 0.55 <= p_pts <= 0.80:
+            if p_pts >= 0.65:
                 c_pts = estimar_cuota_casa(p_pts)
                 selecciones.append({
                     'jugador': fila['Jugador'],
@@ -208,16 +205,16 @@ def generar_combinada_optima_dinamica(df_data, target_cuota=2.50):
                     'cuota': c_pts
                 })
 
-        # --- OPCIONES DE TRIPLES ESCALADAS DINÁMICAMENTE ---
-        lineas_3pt_posibles = []
-        if triples_proj >= 3.5:
-            lineas_3pt_posibles = [3.5, 2.5] # Para tiradores élite como Curry
+        # Definir Piso Seguro de Triples
+        l_3pt = None
+        if triples_proj >= 3.8:
+            l_3pt = 2.5 # Piso para tiradores masivos (Curry)
         elif triples_proj >= 2.0:
-            lineas_3pt_posibles = [2.5, 1.5] # Para tiradores secundarios como Nembhard / Jerome
+            l_3pt = 1.5 # Piso para tiradores secundarios (Nembhard, Jerome, Quickley)
 
-        for l_3pt in lineas_3pt_posibles:
+        if l_3pt:
             p_3pt = calcular_poisson_over(triples_proj, l_3pt)
-            if 0.50 <= p_3pt <= 0.78:
+            if p_3pt >= 0.65:
                 c_3pt = estimar_cuota_casa(p_3pt)
                 selecciones.append({
                     'jugador': fila['Jugador'],
@@ -227,35 +224,37 @@ def generar_combinada_optima_dinamica(df_data, target_cuota=2.50):
                 })
 
     mejores_combinadas = []
+
+    # Generar Tríos (3 Patas)
     for i in range(len(selecciones)):
         for j in range(i + 1, len(selecciones)):
-            s1, s2 = selecciones[i], selecciones[j]
-            if s1['jugador'] == s2['jugador']:
-                continue
-            c_total = s1['cuota'] * s2['cuota']
-            p_real = s1['prob'] * s2['prob']
-            
-            if c_total >= target_cuota:
-                mejores_combinadas.append({'logros': [s1, s2], 'cuota_total': round(c_total, 2), 'prob_real': p_real})
-            else:
-                for k in range(j + 1, len(selecciones)):
-                    s3 = selecciones[k]
-                    if s3['jugador'] in [s1['jugador'], s2['jugador']]:
-                        continue
-                    c_t3 = c_total * s3['cuota']
-                    p_r3 = p_real * s3['prob']
-                    if c_t3 >= target_cuota:
-                        mejores_combinadas.append({'logros': [s1, s2, s3], 'cuota_total': round(c_t3, 2), 'prob_real': p_r3})
+            for k in range(j + 1, len(selecciones)):
+                s1, s2, s3 = selecciones[i], selecciones[j], selecciones[k]
+                
+                # Evitar repetir jugadores en el mismo boleto
+                if len({s1['jugador'], s2['jugador'], s3['jugador']}) < 3:
+                    continue
+                
+                c_total = s1['cuota'] * s2['cuota'] * s3['cuota']
+                p_real = s1['prob'] * s2['prob'] * s3['prob']
+                
+                if c_total >= target_cuota:
+                    mejores_combinadas.append({
+                        'logros': [s1, s2, s3],
+                        'cuota_total': round(c_total, 2),
+                        'prob_real': p_real
+                    })
 
     if not mejores_combinadas:
         return None
 
+    # Ordenar por mayor probabilidad real acumulada
     mejores_combinadas.sort(key=lambda x: x['prob_real'], reverse=True)
     return mejores_combinadas[0]
 
 # --- CABECERA ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
-st.caption("Motor cuantitativo con Escalado Dinámico de Líneas para Cuota Target (>= 2.50)")
+st.caption("Motor cuantitativo enfocado en Combinadas de 3 Logros con Piso Seguro (Target >= 2.50)")
 
 # --- BARRA LATERAL ---
 st.sidebar.header("🎛️ Panel de Control")
@@ -329,13 +328,13 @@ else:
 
     df_data = pd.DataFrame(procesados)
 
-    # --- COMBINADA AUTOMÁTICA DEL DÍA CON ESCALADO DINÁMICO ---
-    comb_top = generar_combinada_optima_dinamica(df_data, target_cuota=target_cuota_input)
+    # --- COMBINADA AUTOMÁTICA DE 3 PATAS PISO SEGURO ---
+    comb_top = generar_combinada_3patas_fuerte(df_data, target_cuota=target_cuota_input)
     
     if comb_top:
         st.markdown('<div class="parlay-box">', unsafe_allow_html=True)
-        st.subheader(f"🔥 COMBINADA AUTOMÁTICA RECOMENDADA DEL DÍA (Target $\\ge {target_cuota_input:.2f}$)")
-        st.caption("Líneas escaladas automáticamente para buscar cuotas individuales de valor real (@1.45 - @1.80).")
+        st.subheader(f"🔥 COMBINADA AUTOMÁTICA RECOMENDADA DEL DÍA (3 Logros - Target $\\ge {target_cuota_input:.2f}$)")
+        st.caption("Boleto optimizado combinando 3 líneas de Piso Seguro para maximizar el retorno con probabilidades sólidas.")
         
         cols_logros = st.columns(len(comb_top['logros']))
         cuotas_reales_ingresadas = []
