@@ -20,7 +20,6 @@ HEADERS = {
     'Referer': 'https://www.nba.com/',
 }
 
-# Mapeo de jugadores estrella por equipo
 PLANTILLAS_EQUIPOS = {
     "San Antonio Spurs": ["Victor Wembanyama", "De'Aaron Fox", "Stephon Castle", "Devin Vassell"],
     "Detroit Pistons": ["Cade Cunningham", "Jaden Ivey", "Tobias Harris", "Jalen Duren"],
@@ -42,7 +41,6 @@ PLANTILLAS_EQUIPOS = {
     "Minnesota Timberwolves": ["Anthony Edwards", "Julius Randle", "Rudy Gobert", "Naz Reid"],
 }
 
-# Datos de respaldo (Benchmark 2026-27) en caso de bloqueo severo de IP en la nube
 BENCHMARKS_JUGADORES = {
     "Victor Wembanyama": {"pts": 29.1, "3pt": 1.9, "min": 30.3, "std": 12.5, "reb": 10.2, "ast": 4.8},
     "Ty Jerome": {"pts": 26.6, "3pt": 2.5, "min": 30.5, "std": 11.9, "reb": 3.8, "ast": 4.8},
@@ -66,6 +64,7 @@ st.markdown("""
     .main { background-color: #0E1117; }
     h1, h2, h3 { color: #F1C40F !important; font-family: 'Helvetica Neue', sans-serif; }
     .stMetric { background-color: #1E222D; padding: 15px; border-radius: 10px; border: 1px solid #2E3440; }
+    .parlay-box { background-color: #161B22; border: 2px solid #F1C40F; border-radius: 12px; padding: 20px; margin-bottom: 25px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -78,14 +77,12 @@ def calcular_poisson_over(promedio: float, linea: float) -> float:
 
 @st.cache_data(ttl=3600)
 def obtener_partidos_espn(fecha_str: str):
-    """Obtiene la cartelera oficial de la NBA mediante la API pública de ESPN (Sin bloqueos de IP)."""
     fecha_clean = fecha_str.replace('-', '')
     url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={fecha_clean}"
     try:
         res = requests.get(url, headers=HEADERS, timeout=8)
         data = res.json()
         events = data.get('events', [])
-        
         juegos = []
         equipos = []
         for ev in events:
@@ -95,7 +92,6 @@ def obtener_partidos_espn(fecha_str: str):
                 team_name = c.get('team', {}).get('displayName', '')
                 equipos.append(team_name)
             juegos.append(ev.get('name', ''))
-            
         return juegos, equipos
     except Exception:
         return [], []
@@ -104,7 +100,6 @@ def obtener_partidos_espn(fecha_str: str):
 def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
     juegos, equipos_nombres = obtener_partidos_espn(fecha_str)
     
-    # Si no hay juegos en ESPN para esa fecha, cargar ranking base de demostración
     if not equipos_nombres:
         jugadores_a_analizar = list(BENCHMARKS_JUGADORES.keys())
         n_juegos_total = 8
@@ -121,7 +116,6 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
 
     resultados = []
     for nombre in jugadores_a_analizar:
-        # Intentar obtener métricas reales en vivo
         prom_pts, prom_3pt, prom_min, std_pts, prom_pra = None, None, None, None, None
         try:
             nba_players = players.get_players()
@@ -146,7 +140,6 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
         except Exception:
             pass
 
-        # Si falla la API de la NBA por bloqueo IP, aplicar el respaldo cuant (Benchmark)
         if prom_pts is None:
             bm = BENCHMARKS_JUGADORES.get(nombre, {"pts": 18.5, "3pt": 1.5, "min": 30.0, "std": 5.5, "reb": 4.5, "ast": 4.0})
             prom_pts = bm["pts"]
@@ -177,6 +170,79 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
     df_res = pd.DataFrame(resultados).drop_duplicates(subset=['Jugador'])
     return df_res, n_juegos_total, n_equipos_total
 
+def generar_combinada_optima(df_data, target_cuota=2.50):
+    """Algoritmo de búsqueda que arma la combinada de mayor ventaja matemática (Target >= 2.50)."""
+    # Filtrar solo jugadores de alta estabilidad y buena rotación
+    cand = df_data[(df_data['Estabilidad'] == "⭐ ALTA") & (df_data['Minutos L10'] >= 25)].copy()
+    
+    if len(cand) < 2:
+        cand = df_data[df_data['Minutos L10'] >= 25].copy()
+
+    # Construir banco de selecciones individuales con cuotas estimadas conservadoras
+    selecciones = []
+    for _, fila in cand.iterrows():
+        # Opción 1: Puntos >19.5
+        p_pts = fila['Prob >19.5 PTS (%)'] / 100.0
+        if p_pts >= 0.55:
+            cuota_pts = max(1.25, round(1.0 / (p_pts * 0.90), 2))
+            selecciones.append({
+                'jugador': fila['Jugador'],
+                'mercado': 'Over 19.5 Puntos',
+                'prob': p_pts,
+                'cuota': cuota_pts
+            })
+            
+        # Opción 2: Triples >1.5
+        p_3pt = fila['Prob >1.5 Triples (%)'] / 100.0
+        if p_3pt >= 0.55:
+            cuota_3pt = max(1.50, round(1.0 / (p_3pt * 0.90), 2))
+            selecciones.append({
+                'jugador': fila['Jugador'],
+                'mercado': 'Over 1.5 Triples',
+                'prob': p_3pt,
+                'cuota': cuota_3pt
+            })
+
+    mejores_combinadas = []
+    
+    # Evaluar parejas y tríos
+    for i in range(len(selecciones)):
+        for j in range(i + 1, len(selecciones)):
+            s1, s2 = selecciones[i], selecciones[j]
+            if s1['jugador'] == s2['jugador']:
+                continue
+            
+            c_total = s1['cuota'] * s2['cuota']
+            p_real = s1['prob'] * s2['prob']
+            
+            if c_total >= target_cuota:
+                mejores_combinadas.append({
+                    'logros': [s1, s2],
+                    'cuota_total': round(c_total, 2),
+                    'prob_real': p_real
+                })
+            else:
+                # Probar agregar un tercer logro
+                for k in range(j + 1, len(selecciones)):
+                    s3 = selecciones[k]
+                    if s3['jugador'] in [s1['jugador'], s2['jugador']]:
+                        continue
+                    c_t3 = c_total * s3['cuota']
+                    p_r3 = p_real * s3['prob']
+                    if c_t3 >= target_cuota:
+                        mejores_combinadas.append({
+                            'logros': [s1, s2, s3],
+                            'cuota_total': round(c_t3, 2),
+                            'prob_real': p_r3
+                        })
+
+    if not mejores_combinadas:
+        return None
+
+    # Ordenar por la mayor probabilidad conjunta real de ganar
+    mejores_combinadas.sort(key=lambda x: x['prob_real'], reverse=True)
+    return mejores_combinadas[0]
+
 # --- CABECERA ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
 st.caption("Motor cuantitativo desplegado en la nube con API ESPN y distribución de Poisson")
@@ -191,6 +257,8 @@ fecha_defecto = now_et.date()
 fecha_seleccionada = st.sidebar.date_input("Fecha de Jornada NBA", value=fecha_defecto)
 fecha_str = fecha_seleccionada.strftime('%Y-%m-%d')
 
+target_cuota_input = st.sidebar.slider("Objetivo Cuota Combinada Mínima", 2.00, 5.00, 2.50, step=0.10)
+
 if st.sidebar.button("🔄 Escanear Jornada en Vivo", use_container_width=True):
     st.cache_data.clear()
     st.rerun()
@@ -204,6 +272,30 @@ with st.spinner(f"⚡ Conectando con ESPN y calculando métricas cuantitativas (
 if df_data.empty:
     st.warning("⚠️ No se pudieron cargar los partidos.")
 else:
+    # --- COMBINADA AUTOMÁTICA DEL DÍA (BANNER PRINCIPAL) ---
+    comb_top = generar_combinada_optima(df_data, target_cuota=target_cuota_input)
+    
+    if comb_top:
+        st.markdown('<div class="parlay-box">', unsafe_allow_html=True)
+        st.subheader(f"🔥 COMBINADA AUTOMÁTICA RECOMENDADA DEL DÍA (Cuota Target $\\ge {target_cuota_input:.2f}$)")
+        
+        cols_logros = st.columns(len(comb_top['logros']))
+        for idx, logro in enumerate(comb_top['logros']):
+            with cols_logros[idx]:
+                st.markdown(f"**Logro {idx+1}:** {logro['jugador']}")
+                st.markdown(f"🎯 *{logro['mercado']}*")
+                st.caption(f"Prob. Modelo: {logro['prob']*100:.1f}% | Cuota Est.: @{logro['cuota']}")
+                
+        st.markdown("---")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Cuota Combinada Estimada", f"@{comb_top['cuota_total']:.2f}")
+        m2.metric("Probabilidad Real Acumulada", f"{comb_top['prob_real']*100:.1f}%")
+        prob_rush = (1.0 / comb_top['cuota_total']) * 100
+        ev_gain = (comb_top['prob_real'] * 100) - prob_rush
+        m3.metric("Ventaja Matemática (+EV)", f"+{ev_gain:.1f}%")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- MÉTRICAS GENERALES ---
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Partidos Hoy", f"{n_juegos}")
     col2.metric("Equipos en Cancha", f"{n_equipos}")
@@ -237,9 +329,10 @@ else:
         hide_index=True
     )
 
+    # --- SIMULADOR MANUAL ---
     st.markdown("---")
-    st.subheader("🧮 Simulador de Combinada (+EV)")
-    st.caption("Selecciona 2 logros e ingresa las cuotas de Rushbet para evaluar la ventaja matemática de tu boleto.")
+    st.subheader("🧮 Simulador de Combinada Manual (+EV)")
+    st.caption("Prueba alternativas ingresando cuotas específicas de Rushbet.")
     
     col_c1, col_c2 = st.columns(2)
     with col_c1:
