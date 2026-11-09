@@ -4,7 +4,7 @@ import requests
 import pandas as pd
 import streamlit as st
 from nba_api.stats.static import players
-from nba_api.stats.endpoints import playergamelog, leaguedashteamstats
+from nba_api.stats.endpoints import playergamelog
 
 st.set_page_config(
     page_title="YZ Quant NBA — Platform (+EV)",
@@ -41,7 +41,6 @@ PLANTILLAS_EQUIPOS = {
     "Minnesota Timberwolves": ["Anthony Edwards", "Julius Randle", "Rudy Gobert", "Naz Reid"],
 }
 
-# Benchmarks ajustados con promedios reales de triples
 BENCHMARKS_JUGADORES = {
     "Victor Wembanyama": {"pts": 29.1, "3pt": 1.9, "min": 30.3, "std": 12.5, "reb": 10.2, "ast": 4.8, "b2b": False, "equipo": "San Antonio Spurs"},
     "Ty Jerome": {"pts": 26.6, "3pt": 2.5, "min": 30.5, "std": 11.9, "reb": 3.8, "ast": 4.8, "b2b": False, "equipo": "Cleveland Cavaliers"},
@@ -75,6 +74,10 @@ def calcular_poisson_over(promedio: float, linea: float) -> float:
     for i in range(k + 1):
         prob_acumulada += (math.pow(promedio, i) * math.exp(-promedio)) / math.factorial(i)
     return max(0.0, min(1.0, 1.0 - prob_acumulada))
+
+def estimar_cuota_casa(probabilidad: float) -> float:
+    margen = 0.90
+    return max(1.10, round(1.0 / (probabilidad * margen), 2))
 
 @st.cache_data(ttl=3600)
 def obtener_partidos_espn(fecha_str: str):
@@ -173,26 +176,55 @@ def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
     df_res = pd.DataFrame(resultados).drop_duplicates(subset=['Jugador'])
     return df_res, n_juegos_total, n_equipos_total
 
-def generar_combinada_optima(df_data, target_cuota=2.50):
+def generar_combinada_optima_dinamica(df_data, target_cuota=2.50):
+    """Genera combinadas ajustando la línea de cada jugador para buscar cuotas individuales con valor real (@1.45 - @1.85)."""
     cand = df_data[(df_data['Estabilidad'] == "⭐ ALTA") & (df_data['Minutos L10'] >= 25)].copy()
     if len(cand) < 2:
         cand = df_data[df_data['Minutos L10'] >= 25].copy()
 
     selecciones = []
     for _, fila in cand.iterrows():
-        # Puntos >19.5
-        p_pts = fila['Prob >19.5 PTS (%)'] / 100.0
-        if p_pts >= 0.55:
-            cuota_pts = max(1.15, round(1.0 / (p_pts * 0.90), 2))
-            selecciones.append({'jugador': fila['Jugador'], 'mercado': 'Over 19.5 Puntos', 'prob': p_pts, 'cuota': cuota_pts})
-            
-        # Triples >1.5: SOLO para jugadores que promedien al menos 1.5 triples reales
-        if fila['Triples Prom'] >= 1.5:
-            p_3pt = fila['Prob >1.5 Triples (%)'] / 100.0
-            if p_3pt >= 0.55:
-                # Cuota teórica real basada en probabilidad sin piso artificial de 1.50
-                cuota_3pt = max(1.10, round(1.0 / (p_3pt * 0.90), 2))
-                selecciones.append({'jugador': fila['Jugador'], 'mercado': 'Over 1.5 Triples', 'prob': p_3pt, 'cuota': cuota_3pt})
+        pts_proj = fila['PTS Proyectados']
+        triples_proj = fila['Triples Prom']
+
+        # --- OPCIONES DE PUNTOS ESCALADAS DINÁMICAMENTE ---
+        lineas_pts_posibles = []
+        if pts_proj >= 26.0:
+            lineas_pts_posibles = [24.5, 22.5]
+        elif pts_proj >= 21.0:
+            lineas_pts_posibles = [19.5, 21.5]
+        elif pts_proj >= 17.0:
+            lineas_pts_posibles = [15.5, 17.5]
+
+        for l_pts in lineas_pts_posibles:
+            p_pts = calcular_poisson_over(pts_proj, l_pts)
+            # Buscar cuotas con sustancia (entre 55% y 78% de probabilidad)
+            if 0.55 <= p_pts <= 0.80:
+                c_pts = estimar_cuota_casa(p_pts)
+                selecciones.append({
+                    'jugador': fila['Jugador'],
+                    'mercado': f'Over {l_pts} Puntos',
+                    'prob': p_pts,
+                    'cuota': c_pts
+                })
+
+        # --- OPCIONES DE TRIPLES ESCALADAS DINÁMICAMENTE ---
+        lineas_3pt_posibles = []
+        if triples_proj >= 3.5:
+            lineas_3pt_posibles = [3.5, 2.5] # Para tiradores élite como Curry
+        elif triples_proj >= 2.0:
+            lineas_3pt_posibles = [2.5, 1.5] # Para tiradores secundarios como Nembhard / Jerome
+
+        for l_3pt in lineas_3pt_posibles:
+            p_3pt = calcular_poisson_over(triples_proj, l_3pt)
+            if 0.50 <= p_3pt <= 0.78:
+                c_3pt = estimar_cuota_casa(p_3pt)
+                selecciones.append({
+                    'jugador': fila['Jugador'],
+                    'mercado': f'Over {l_3pt} Triples',
+                    'prob': p_3pt,
+                    'cuota': c_3pt
+                })
 
     mejores_combinadas = []
     for i in range(len(selecciones)):
@@ -223,7 +255,7 @@ def generar_combinada_optima(df_data, target_cuota=2.50):
 
 # --- CABECERA ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
-st.caption("Motor cuantitativo con B2B y cálculo de cuotas dinámicas reales")
+st.caption("Motor cuantitativo con Escalado Dinámico de Líneas para Cuota Target (>= 2.50)")
 
 # --- BARRA LATERAL ---
 st.sidebar.header("🎛️ Panel de Control")
@@ -297,27 +329,45 @@ else:
 
     df_data = pd.DataFrame(procesados)
 
-    # --- COMBINADA AUTOMÁTICA DEL DÍA ---
-    comb_top = generar_combinada_optima(df_data, target_cuota=target_cuota_input)
+    # --- COMBINADA AUTOMÁTICA DEL DÍA CON ESCALADO DINÁMICO ---
+    comb_top = generar_combinada_optima_dinamica(df_data, target_cuota=target_cuota_input)
     
     if comb_top:
         st.markdown('<div class="parlay-box">', unsafe_allow_html=True)
         st.subheader(f"🔥 COMBINADA AUTOMÁTICA RECOMENDADA DEL DÍA (Target $\\ge {target_cuota_input:.2f}$)")
+        st.caption("Líneas escaladas automáticamente para buscar cuotas individuales de valor real (@1.45 - @1.80).")
         
         cols_logros = st.columns(len(comb_top['logros']))
+        cuotas_reales_ingresadas = []
+
         for idx, logro in enumerate(comb_top['logros']):
             with cols_logros[idx]:
                 st.markdown(f"**Logro {idx+1}:** {logro['jugador']}")
                 st.markdown(f"🎯 *{logro['mercado']}*")
-                st.caption(f"Prob. Modelo: {logro['prob']*100:.1f}% | Cuota Est.: @{logro['cuota']}")
+                st.caption(f"Prob. Modelo: {logro['prob']*100:.1f}%")
+                
+                c_real_val = st.number_input(
+                    f"Cuota Rushbet ({logro['jugador'][:8]}...)",
+                    min_value=1.01,
+                    value=float(logro['cuota']),
+                    step=0.02,
+                    key=f"cuota_real_banner_{idx}"
+                )
+                cuotas_reales_ingresadas.append(c_real_val)
                 
         st.markdown("---")
+        
+        cuota_total_real = 1.0
+        for c in cuotas_reales_ingresadas:
+            cuota_total_real *= c
+            
+        prob_rush_real = (1.0 / cuota_total_real) * 100
+        ev_gain_real = (comb_top['prob_real'] * 100) - prob_rush_real
+
         m1, m2, m3 = st.columns(3)
-        m1.metric("Cuota Combinada Estimada", f"@{comb_top['cuota_total']:.2f}")
+        m1.metric("Cuota Combinada Rushbet", f"@{cuota_total_real:.2f}")
         m2.metric("Probabilidad Real Acumulada", f"{comb_top['prob_real']*100:.1f}%")
-        prob_rush = (1.0 / comb_top['cuota_total']) * 100
-        ev_gain = (comb_top['prob_real'] * 100) - prob_rush
-        m3.metric("Ventaja Matemática (+EV)", f"+{ev_gain:.1f}%")
+        m3.metric("Ventaja Matemática REAL (+EV)", f"{ev_gain_real:+.1f}%", delta_color="normal" if ev_gain_real > 0 else "inverse")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # --- MÉTRICAS GENERALES ---
