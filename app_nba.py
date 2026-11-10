@@ -20,6 +20,40 @@ HEADERS = {
     'Referer': 'https://www.nba.com/',
 }
 
+# Base de datos con los 30 equipos de la NBA para cruce dinámico con la cartelera del día
+PLANTILLAS_30_EQUIPOS = {
+    "Boston Celtics": ["Jayson Tatum", "Jaylen Brown", "Derrick White", "Jrue Holiday", "Al Horford", "Kristaps Porzingis", "Payton Pritchard"],
+    "Brooklyn Nets": ["Michael Porter Jr.", "Cam Thomas", "Dennis Schroder", "Cameron Johnson", "Nic Claxton", "Dorian Finney-Smith"],
+    "New York Knicks": ["Jalen Brunson", "Karl-Anthony Towns", "Mikal Bridges", "OG Anunoby", "Josh Hart", "Miles McBride"],
+    "Philadelphia 76ers": ["Joel Embiid", "Tyrese Maxey", "Paul George", "Kelly Oubre Jr.", "Caleb Martin", "Kyle Lowry"],
+    "Toronto Raptors": ["Scottie Barnes", "RJ Barrett", "Immanuel Quickley", "Jakob Poeltl", "Gradey Dick", "Davion Mitchell"],
+    "Chicago Bulls": ["Coby White", "Zach LaVine", "Nikola Vucevic", "Josh Giddey", "Patrick Williams", "Ayo Dosunmu"],
+    "Cleveland Cavaliers": ["Donovan Mitchell", "Darius Garland", "Evan Mobley", "Jarrett Allen", "Caris LeVert", "Max Strus"],
+    "Detroit Pistons": ["Cade Cunningham", "Jaden Ivey", "Tobias Harris", "Jalen Duren", "Malik Beasley", "Tim Hardaway Jr."],
+    "Indiana Pacers": ["Tyrese Haliburton", "Pascal Siakam", "Myles Turner", "Andrew Nembhard", "Bennedict Mathurin", "Aaron Nesmith"],
+    "Milwaukee Bucks": ["Giannis Antetokounmpo", "Damian Lillard", "Bobby Portis", "Brook Lopez", "Khris Middleton", "Gary Trent Jr."],
+    "Atlanta Hawks": ["Trae Young", "Jalen Johnson", "Dyson Daniels", "Zaccharie Risacher", "Clint Capela", "Bogdan Bogdanovic"],
+    "Charlotte Hornets": ["LaMelo Ball", "Brandon Miller", "Miles Bridges", "Nick Richards", "Tre Mann", "Grant Williams"],
+    "Miami Heat": ["Jimmy Butler", "Bam Adebayo", "Tyler Herro", "Terry Rozier", "Nikola Jovic", "Jaime Jaquez Jr."],
+    "Orlando Magic": ["Paolo Banchero", "Franz Wagner", "Jalen Suggs", "Kentavious Caldwell-Pope", "Wendell Carter Jr."],
+    "Washington Wizards": ["Jordan Poole", "Kyle Kuzma", "Alexandre Sarr", "Jonas Valanciunas", "Bilal Coulibaly"],
+    "Denver Nuggets": ["Nikola Jokic", "Jamal Murray", "Aaron Gordon", "Michael Porter Jr.", "Christian Braun", "Russell Westbrook"],
+    "Minnesota Timberwolves": ["Anthony Edwards", "Julius Randle", "Rudy Gobert", "Naz Reid", "Mike Conley", "Jaden McDaniels"],
+    "Oklahoma City Thunder": ["Shai Gilgeous-Alexander", "Jalen Williams", "Chet Holmgren", "Luguentz Dort", "Alex Caruso", "Isaiah Hartenstein"],
+    "Portland Trail Blazers": ["Anfernee Simons", "Jerami Grant", "Deandre Ayton", "Shaedon Sharpe", "Scoot Henderson"],
+    "Utah Jazz": ["Lauri Markkanen", "Collin Sexton", "Walker Kessler", "John Collins", "Keyonte George", "Jordan Clarkson"],
+    "Golden State Warriors": ["Stephen Curry", "Jonathan Kuminga", "Buddy Hield", "Draymond Green", "Brandin Podziemski", "Andrew Wiggins"],
+    "Los Angeles Clippers": ["James Harden", "Kawhi Leonard", "Norman Powell", "Ivica Zubac", "Terance Mann", "Derrick Jones Jr."],
+    "Los Angeles Lakers": ["LeBron James", "Anthony Davis", "Austin Reaves", "D'Angelo Russell", "Rui Hachimura", "Dalton Knecht"],
+    "Phoenix Suns": ["Kevin Durant", "Devin Booker", "Bradley Beal", "Tyus Jones", "Jusuf Nurkic", "Grayson Allen"],
+    "Sacramento Kings": ["Domantas Sabonis", "DeMar DeRozan", "Malik Monk", "Keegan Murray", "Keon Ellis"],
+    "Dallas Mavericks": ["Luka Doncic", "Kyrie Irving", "Klay Thompson", "PJ Washington", "Daniel Gafford", "Dereck Lively II"],
+    "Houston Rockets": ["Alperen Sengun", "Jalen Green", "Fred VanVleet", "Jabari Smith Jr.", "Dillon Brooks", "Amen Thompson"],
+    "Memphis Grizzlies": ["Ja Morant", "Desmond Bane", "Jaren Jackson Jr.", "Ty Jerome", "Marcus Smart", "Zach Edey", "Santi Aldama"],
+    "New Orleans Pelicans": ["Zion Williamson", "CJ McCollum", "Brandon Ingram", "DeJounte Murray", "Herbert Jones", "Trey Murphy III"],
+    "San Antonio Spurs": ["Victor Wembanyama", "De'Aaron Fox", "Stephon Castle", "Devin Vassell", "Chris Paul", "Jeremy Sochan"],
+}
+
 def calcular_poisson_over(promedio: float, linea: float) -> float:
     k = math.floor(linea)
     prob_acumulada = 0.0
@@ -27,9 +61,8 @@ def calcular_poisson_over(promedio: float, linea: float) -> float:
         prob_acumulada += (math.pow(promedio, i) * math.exp(-promedio)) / math.factorial(i)
     return max(0.0, min(1.0, 1.0 - prob_acumulada))
 
-@st.cache_data(ttl=3600)
-def obtener_jornada_y_jugadores_espn(fecha_str: str):
-    """Obtiene los equipos y todos los jugadores clave programados para jugar en la fecha seleccionada."""
+@st.cache_data(ttl=1800)
+def obtener_equipos_y_jugadores_del_dia(fecha_str: str):
     fecha_clean = fecha_str.replace('-', '')
     url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={fecha_clean}"
     
@@ -39,7 +72,7 @@ def obtener_jornada_y_jugadores_espn(fecha_str: str):
     mapa_jugador_equipo = {}
 
     try:
-        res = requests.get(url, headers=HEADERS, timeout=10)
+        res = requests.get(url, headers=HEADERS, timeout=8)
         data = res.json()
         events = data.get('events', [])
         
@@ -50,16 +83,15 @@ def obtener_jornada_y_jugadores_espn(fecha_str: str):
             
             for c in competitors:
                 t_name = c.get('team', {}).get('displayName', '')
-                equipos_hoy.append(t_name)
-                
-                # Extraer jugadores destacados/titulares de la ficha de ESPN
-                leaders = c.get('leaders', [])
-                for leader in leaders:
-                    for l_item in leader.get('leaders', []):
-                        ath_name = l_item.get('athlete', {}).get('displayName', '')
-                        if ath_name and ath_name not in jugadores_jornada:
-                            jugadores_jornada.append(ath_name)
-                            mapa_jugador_equipo[ath_name] = t_name
+                if t_name:
+                    equipos_hoy.append(t_name)
+                    
+                    for eq_key, lista_jugadores in PLANTILLAS_30_EQUIPOS.items():
+                        if eq_key.lower() in t_name.lower() or t_name.lower() in eq_key.lower():
+                            for j in lista_jugadores:
+                                if j not in jugadores_jornada:
+                                    jugadores_jornada.append(j)
+                                    mapa_jugador_equipo[j] = t_name
 
         return juegos, equipos_hoy, jugadores_jornada, mapa_jugador_equipo
     except Exception:
@@ -67,7 +99,7 @@ def obtener_jornada_y_jugadores_espn(fecha_str: str):
 
 @st.cache_data(ttl=1800)
 def cargar_datos_jornada_en_vivo(fecha_str: str, temporada='2026-27'):
-    juegos, equipos_hoy, jugadores_jornada, mapa_equipos = obtener_jornada_y_jugadores_espn(fecha_str)
+    juegos, equipos_hoy, jugadores_jornada, mapa_equipos = obtener_equipos_y_jugadores_del_dia(fecha_str)
     
     if not jugadores_jornada:
         return pd.DataFrame(), 0, 0
@@ -97,12 +129,11 @@ def cargar_datos_jornada_en_vivo(fecha_str: str, temporada='2026-27'):
 
             prom_pts = df_l10['PTS'].mean()
             prom_3pt = df_l10['FG3M'].mean()
-            prom_3pa = df_l10['FG3A'].mean()
+            prom_3pa = df_l10['FG3A'].mean() if 'FG3A' in df_l10.columns else (prom_3pt * 2.5)
             prom_min = df_l10['MIN'].mean()
             std_pts = df_l10['PTS'].std()
             prom_pra = (df_l10['PTS'] + df_l10['REB'] + df_l10['AST']).mean()
 
-            # Detección B2B
             df['GAME_DATE'] = pd.to_datetime(df['GAME_DATE'], format='%b %d, %Y', errors='coerce')
             fecha_hoy_dt = pd.to_datetime(fecha_str)
             fechas_previas = df[df['GAME_DATE'] < fecha_hoy_dt]['GAME_DATE']
@@ -133,7 +164,7 @@ def cargar_datos_jornada_en_vivo(fecha_str: str, temporada='2026-27'):
 
 # --- CABECERA ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
-st.caption("Motor cuantitativo 100% dinámico — Escaneo en vivo de la plantilla del día")
+st.caption("Motor cuantitativo dinámico — Escaneo automático por cruce de plantillas del día")
 
 # --- BARRA LATERAL ---
 st.sidebar.header("🎛️ Panel de Control")
@@ -145,7 +176,7 @@ fecha_defecto = now_et.date()
 fecha_seleccionada = st.sidebar.date_input("Fecha de Jornada NBA", value=fecha_defecto)
 fecha_str = fecha_seleccionada.strftime('%Y-%m-%d')
 
-with st.spinner(f"⚡ Escaneando todos los partidos y jugadores activos ({fecha_str})..."):
+with st.spinner(f"⚡ Escaneando cartelera de ESPN y proyecciones L10 ({fecha_str})..."):
     df_raw, n_juegos, n_equipos = cargar_datos_jornada_en_vivo(fecha_str)
 
 st.sidebar.markdown("---")
@@ -164,7 +195,7 @@ solo_alta_estabilidad = st.sidebar.checkbox("Mostrar solo estabilidad ⭐ ALTA",
 filtro_volumen_3pt = st.sidebar.checkbox("Filtrar tiradores con al menos 5.5 intentos (3PA)", False)
 
 if df_raw.empty:
-    st.warning(f"⚠️ No se detectaron partidos o datos en vivo para la fecha {fecha_str}. Intenta seleccionando la fecha de hoy o de mañana en la barra lateral.")
+    st.warning(f"⚠️ No se detectaron partidos en vivo para la fecha ({fecha_str}). Si hoy no hay partidos en el calendario NBA, intenta cambiando la fecha al día de mañana.")
 else:
     equipos_con_baja = set()
     for b in bajas_confirmadas:
