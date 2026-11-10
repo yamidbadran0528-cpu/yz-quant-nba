@@ -69,6 +69,7 @@ def obtener_equipos_programados_hoy():
 def actualizar_datos_nba():
     print("🚀 Verificando cartelera del día...")
     equipos_hoy = obtener_equipos_programados_hoy()
+    equipos_hoy_lower = [x.lower() for x in equipos_hoy]
     
     if equipos_hoy:
         print(f"🏀 Equipos jugando hoy ({len(equipos_hoy)}): {list(equipos_hoy)}")
@@ -79,7 +80,7 @@ def actualizar_datos_nba():
     mapa_jugador_equipo = {}
     
     for eq, lista_j in PLANTILLAS_EQUIPOS.items():
-        juega_hoy = any(eq.lower() in eh.lower() or eh.lower() in eq.lower() for eh.lower() in [x.lower() for x in equipos_hoy]) if equipos_hoy else True
+        juega_hoy = any(eq.lower() in eh or eh in eq.lower() for eh in equipos_hoy_lower) if equipos_hoy else True
         if juega_hoy:
             for j in lista_j:
                 jugadores_a_escanear.append(j)
