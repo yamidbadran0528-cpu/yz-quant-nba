@@ -13,11 +13,23 @@ HEADERS = {
     'Referer': 'https://www.nba.com/',
 }
 
+ABBR_TO_TEAM = {
+    "ATL": "Atlanta Hawks", "BOS": "Boston Celtics", "BKN": "Brooklyn Nets", "CHA": "Charlotte Hornets",
+    "CHI": "Chicago Bulls", "CLE": "Cleveland Cavaliers", "DAL": "Dallas Mavericks", "DEN": "Denver Nuggets",
+    "DET": "Detroit Pistons", "GSW": "Golden State Warriors", "HOU": "Houston Rockets", "IND": "Indiana Pacers",
+    "LAC": "Los Angeles Clippers", "LAL": "Los Angeles Lakers", "MEM": "Memphis Grizzlies", "MIA": "Miami Heat",
+    "MIL": "Milwaukee Bucks", "MIN": "Minnesota Timberwolves", "NOP": "New Orleans Pelicans", "NYK": "New York Knicks",
+    "OKC": "Oklahoma City Thunder", "ORL": "Orlando Magic", "PHI": "Philadelphia 76ers", "PHX": "Phoenix Suns",
+    "POR": "Portland Trail Blazers", "SAC": "Sacramento Kings", "SAS": "San Antonio Spurs", "TOR": "Toronto Raptors",
+    "UTA": "Utah Jazz", "WAS": "Washington Wizards"
+}
+
 FALLBACK_PLAYERS = {
     "Victor Wembanyama": {"equipo": "San Antonio Spurs", "pts": 29.1, "3pt": 1.9, "3pa": 6.8, "min": 30.3, "std": 12.5, "pra": 44.1},
+    "De'Aaron Fox": {"equipo": "San Antonio Spurs", "pts": 24.2, "3pt": 1.9, "3pa": 6.1, "min": 35.1, "std": 6.8, "pra": 34.5},
     "Stephen Curry": {"equipo": "Golden State Warriors", "pts": 25.2, "3pt": 4.2, "3pa": 10.5, "min": 32.0, "std": 5.8, "pra": 35.8},
     "Shai Gilgeous-Alexander": {"equipo": "Oklahoma City Thunder", "pts": 28.5, "3pt": 1.8, "3pa": 5.2, "min": 34.2, "std": 5.1, "pra": 40.2},
-    "Giannis Antetokounmpo": {"equipo": "Milwaukee Bucks", "pts": 29.8, "3pt": 0.4, "3pa": 1.1, "min": 33.8, "std": 6.2, "pra": 47.1},
+    "Giannis Antetokounmpo": {"equipo": "Miami Heat", "pts": 29.8, "3pt": 0.4, "3pa": 1.1, "min": 33.8, "std": 6.2, "pra": 47.1},
     "Jayson Tatum": {"equipo": "Boston Celtics", "pts": 26.4, "3pt": 2.8, "3pa": 8.2, "min": 31.8, "std": 6.6, "pra": 39.8},
     "Cade Cunningham": {"equipo": "Detroit Pistons", "pts": 22.9, "3pt": 2.1, "3pa": 6.2, "min": 34.0, "std": 6.4, "pra": 36.0},
     "Ty Jerome": {"equipo": "Memphis Grizzlies", "pts": 18.6, "3pt": 2.4, "3pa": 5.5, "min": 28.5, "std": 4.1, "pra": 26.2},
@@ -27,7 +39,6 @@ FALLBACK_PLAYERS = {
     "Anthony Edwards": {"equipo": "Minnesota Timberwolves", "pts": 27.8, "3pt": 3.5, "3pa": 9.1, "min": 35.5, "std": 6.3, "pra": 38.5},
     "Luka Doncic": {"equipo": "Dallas Mavericks", "pts": 28.9, "3pt": 3.1, "3pa": 8.8, "min": 36.2, "std": 7.2, "pra": 46.1},
     "Donovan Mitchell": {"equipo": "Cleveland Cavaliers", "pts": 24.5, "3pt": 3.2, "3pa": 8.5, "min": 33.5, "std": 5.9, "pra": 34.0},
-    "De'Aaron Fox": {"equipo": "San Antonio Spurs", "pts": 24.2, "3pt": 1.9, "3pa": 6.1, "min": 35.1, "std": 6.8, "pra": 34.5},
     "Michael Porter Jr.": {"equipo": "Brooklyn Nets", "pts": 18.2, "3pt": 2.7, "3pa": 6.5, "min": 31.5, "std": 5.5, "pra": 26.7},
     "Scottie Barnes": {"equipo": "Toronto Raptors", "pts": 23.5, "3pt": 0.5, "3pa": 2.2, "min": 33.4, "std": 11.8, "pra": 36.2},
     "Zion Williamson": {"equipo": "New Orleans Pelicans", "pts": 21.0, "3pt": 0.1, "3pa": 0.3, "min": 33.1, "std": 4.4, "pra": 29.0},
@@ -47,12 +58,11 @@ PLANTILLAS_EQUIPOS = {
     "Golden State Warriors": ["Stephen Curry"],
     "Indiana Pacers": ["Andrew Nembhard"],
     "Memphis Grizzlies": ["Ty Jerome"],
-    "Milwaukee Bucks": ["Giannis Antetokounmpo"],
+    "Miami Heat": ["Giannis Antetokounmpo"],
     "Minnesota Timberwolves": ["Anthony Edwards"],
     "New Orleans Pelicans": ["Zion Williamson"],
     "Oklahoma City Thunder": ["Shai Gilgeous-Alexander"],
-    "Sacramento Kings": ["De'Aaron Fox"],
-    "San Antonio Spurs": ["Victor Wembanyama"],
+    "San Antonio Spurs": ["Victor Wembanyama", "De'Aaron Fox"],
     "Toronto Raptors": ["Scottie Barnes", "Immanuel Quickley"]
 }
 
@@ -107,11 +117,12 @@ def actualizar_datos_nba():
         fb = FALLBACK_PLAYERS.get(nombre, {"pts": 20.0, "3pt": 1.5, "3pa": 4.5, "min": 30.0, "std": 5.5, "pra": 30.0, "equipo": mapa_jugador_equipo.get(nombre, "NBA Team")})
         
         pts_avg, fg3m_avg, fg3a_avg, min_avg, std_pts, pra_avg = fb["pts"], fb["3pt"], fb["3pa"], fb["min"], fb["std"], fb["pra"]
-        
+        equipo_detectado = fb.get("equipo", mapa_jugador_equipo.get(nombre, "NBA Team"))
+
         pid = mapa_ids.get(nombre.lower())
         if pid:
             try:
-                time.sleep(0.6) # Pausa técnica anti-bloqueo
+                time.sleep(0.6)
                 gamelog = playergamelog.PlayerGameLog(player_id=pid, season='2026-27', headers=HEADERS, timeout=6)
                 df = gamelog.get_data_frames()[0]
                 if not df.empty and len(df) >= 3:
@@ -123,19 +134,25 @@ def actualizar_datos_nba():
                     df_l10['REB'] = pd.to_numeric(df_l10['REB'])
                     df_l10['AST'] = pd.to_numeric(df_l10['AST'])
 
+                    matchup = str(df_l10.iloc[0].get('MATCHUP', ''))
+                    if matchup:
+                        abbr = matchup.split(' ')[0]
+                        if abbr in ABBR_TO_TEAM:
+                            equipo_detectado = ABBR_TO_TEAM[abbr]
+
                     pts_avg = round(float(df_l10['PTS'].mean()), 1)
                     fg3m_avg = round(float(df_l10['FG3M'].mean()), 1)
                     fg3a_avg = round(float(df_l10['FG3A'].mean()), 1) if 'FG3A' in df_l10.columns else round(fg3m_avg * 2.5, 1)
                     min_avg = round(float(df_l10['MIN'].mean()), 1)
                     std_pts = round(float(df_l10['PTS'].std()), 1)
                     pra_avg = round(float((df_l10['PTS'] + df_l10['REB'] + df_l10['AST']).mean()), 1)
-                    print(f"✅ En vivo NBA API: {nombre} ({pts_avg} PTS)")
+                    print(f"✅ En vivo NBA API: {nombre} ({equipo_detectado} - {pts_avg} PTS)")
             except Exception as e:
                 print(f"⚠️ Usando fallback para {nombre}: {e}")
 
         dataset.append({
             "Jugador": nombre,
-            "Equipo": mapa_jugador_equipo.get(nombre, fb.get("equipo", "NBA Team")),
+            "Equipo": equipo_detectado,
             "Minutos L10": min_avg,
             "PTS Base": pts_avg,
             "3PT Base": fg3m_avg,
@@ -161,7 +178,7 @@ def actualizar_datos_nba():
 
     with open("datos_nba_hoy.json", "w", encoding="utf-8") as f:
         json.dump(dataset, f, indent=4, ensure_ascii=False)
-    print("🎉 Proceso finalizado. 'datos_nba_hoy.json' actualizado con datos válidos.")
+    print("🎉 Proceso finalizado. 'datos_nba_hoy.json' actualizado.")
 
 if __name__ == "__main__":
     actualizar_datos_nba()
