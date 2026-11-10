@@ -1,1 +1,46 @@
-[]
+[
+    {
+        "Jugador": "Jayson Tatum",
+        "Equipo": "Boston Celtics",
+        "Minutos L10": 31.8,
+        "PTS Base": 26.4,
+        "3PT Base": 2.8,
+        "3PA (Intentos)": 8.2,
+        "Estabilidad": "ESTÁNDAR",
+        "PRA Base": 39.8,
+        "Varianza (std)": 6.6
+    },
+    {
+        "Jugador": "Giannis Antetokounmpo",
+        "Equipo": "Milwaukee Bucks",
+        "Minutos L10": 33.8,
+        "PTS Base": 29.8,
+        "3PT Base": 0.4,
+        "3PA (Intentos)": 1.1,
+        "Estabilidad": "⭐ ALTA",
+        "PRA Base": 47.1,
+        "Varianza (std)": 6.2
+    },
+    {
+        "Jugador": "Shai Gilgeous-Alexander",
+        "Equipo": "Oklahoma City Thunder",
+        "Minutos L10": 34.2,
+        "PTS Base": 28.5,
+        "3PT Base": 1.8,
+        "3PA (Intentos)": 5.2,
+        "Estabilidad": "⭐ ALTA",
+        "PRA Base": 40.2,
+        "Varianza (std)": 5.1
+    },
+    {
+        "Jugador": "De'Aaron Fox",
+        "Equipo": "Sacramento Kings",
+        "Minutos L10": 35.1,
+        "PTS Base": 24.2,
+        "3PT Base": 1.9,
+        "3PA (Intentos)": 6.1,
+        "Estabilidad": "ESTÁNDAR",
+        "PRA Base": 34.5,
+        "Varianza (std)": 6.8
+    }
+]
