@@ -15,9 +15,10 @@ st.set_page_config(
 
 BASE_JUGADORES_BACKUP = [
     {"Jugador": "Victor Wembanyama", "Equipo": "San Antonio Spurs", "Minutos L10": 30.3, "PTS Base": 29.1, "3PT Base": 1.9, "3PA (Intentos)": 6.8, "Estabilidad": "⭐ ALTA", "PRA Base": 44.1, "Varianza (std)": 12.5},
+    {"Jugador": "De'Aaron Fox", "Equipo": "San Antonio Spurs", "Minutos L10": 35.1, "PTS Base": 24.2, "3PT Base": 1.9, "3PA (Intentos)": 6.1, "Estabilidad": "ESTÁNDAR", "PRA Base": 34.5, "Varianza (std)": 6.8},
+    {"Jugador": "Giannis Antetokounmpo", "Equipo": "Miami Heat", "Minutos L10": 33.8, "PTS Base": 29.8, "3PT Base": 0.4, "3PA (Intentos)": 1.1, "Estabilidad": "⭐ ALTA", "PRA Base": 47.1, "Varianza (std)": 6.2},
     {"Jugador": "Stephen Curry", "Equipo": "Golden State Warriors", "Minutos L10": 32.0, "PTS Base": 25.2, "3PT Base": 4.2, "3PA (Intentos)": 10.5, "Estabilidad": "⭐ ALTA", "PRA Base": 35.8, "Varianza (std)": 5.8},
     {"Jugador": "Shai Gilgeous-Alexander", "Equipo": "Oklahoma City Thunder", "Minutos L10": 34.2, "PTS Base": 28.5, "3PT Base": 1.8, "3PA (Intentos)": 5.2, "Estabilidad": "⭐ ALTA", "PRA Base": 40.2, "Varianza (std)": 5.1},
-    {"Jugador": "Giannis Antetokounmpo", "Equipo": "Milwaukee Bucks", "Minutos L10": 33.8, "PTS Base": 29.8, "3PT Base": 0.4, "3PA (Intentos)": 1.1, "Estabilidad": "⭐ ALTA", "PRA Base": 47.1, "Varianza (std)": 6.2},
     {"Jugador": "Jayson Tatum", "Equipo": "Boston Celtics", "Minutos L10": 31.8, "PTS Base": 26.4, "3PT Base": 2.8, "3PA (Intentos)": 8.2, "Estabilidad": "ESTÁNDAR", "PRA Base": 39.8, "Varianza (std)": 6.6},
     {"Jugador": "Cade Cunningham", "Equipo": "Detroit Pistons", "Minutos L10": 34.0, "PTS Base": 22.9, "3PT Base": 2.1, "3PA (Intentos)": 6.2, "Estabilidad": "⭐ ALTA", "PRA Base": 36.0, "Varianza (std)": 6.4},
     {"Jugador": "Ty Jerome", "Equipo": "Memphis Grizzlies", "Minutos L10": 28.5, "PTS Base": 18.6, "3PT Base": 2.4, "3PA (Intentos)": 5.5, "Estabilidad": "⭐ ALTA", "PRA Base": 26.2, "Varianza (std)": 4.1},
