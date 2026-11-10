@@ -20,34 +20,6 @@ HEADERS = {
     'Referer': 'https://www.nba.com/',
 }
 
-# Base de datos cuantitativa de promedios (Los equipos se asignan de forma dinámica en vivo)
-BENCHMARKS_JUGADORES = {
-    "Victor Wembanyama": {"pts": 29.1, "3pt": 1.9, "min": 30.3, "std": 12.5, "reb": 10.2, "ast": 4.8, "b2b": False},
-    "De'Aaron Fox": {"pts": 24.2, "3pt": 1.9, "min": 35.1, "std": 6.8, "reb": 4.1, "ast": 6.2, "b2b": False},
-    "Ty Jerome": {"pts": 10.5, "3pt": 1.4, "min": 21.2, "std": 4.1, "reb": 2.2, "ast": 3.4, "b2b": False},
-    "Cade Cunningham": {"pts": 22.9, "3pt": 2.1, "min": 34.0, "std": 6.4, "reb": 6.1, "ast": 7.0, "b2b": False},
-    "Scottie Barnes": {"pts": 23.5, "3pt": 0.5, "min": 33.4, "std": 11.8, "reb": 7.5, "ast": 5.2, "b2b": False},
-    "Zion Williamson": {"pts": 21.0, "3pt": 0.1, "min": 33.1, "std": 4.4, "reb": 5.2, "ast": 2.8, "b2b": False},
-    "Jalen Johnson": {"pts": 19.8, "3pt": 1.0, "min": 33.1, "std": 6.1, "reb": 9.8, "ast": 6.5, "b2b": False},
-    "Evan Mobley": {"pts": 18.4, "3pt": 0.6, "min": 32.8, "std": 5.0, "reb": 8.5, "ast": 3.3, "b2b": False},
-    "Trae Young": {"pts": 18.4, "3pt": 1.8, "min": 35.1, "std": 6.1, "reb": 3.1, "ast": 9.2, "b2b": False},
-    "Andrew Nembhard": {"pts": 17.8, "3pt": 2.5, "min": 33.1, "std": 4.7, "reb": 3.2, "ast": 5.8, "b2b": False},
-    "Immanuel Quickley": {"pts": 17.4, "3pt": 2.4, "min": 31.8, "std": 5.2, "reb": 3.8, "ast": 5.1, "b2b": False},
-    "Jayson Tatum": {"pts": 26.4, "3pt": 2.8, "min": 31.8, "std": 6.6, "reb": 5.8, "ast": 7.6, "b2b": False},
-    "Stephen Curry": {"pts": 25.2, "3pt": 4.2, "min": 32.0, "std": 5.8, "reb": 4.5, "ast": 6.1, "b2b": False},
-    "Shai Gilgeous-Alexander": {"pts": 28.5, "3pt": 1.8, "min": 34.2, "std": 5.1, "reb": 5.5, "ast": 6.2, "b2b": False},
-    "Giannis Antetokounmpo": {"pts": 29.8, "3pt": 0.4, "min": 33.8, "std": 6.2, "reb": 11.5, "ast": 5.8, "b2b": False},
-    "Michael Porter Jr.": {"pts": 18.2, "3pt": 2.7, "min": 31.5, "std": 5.5, "reb": 7.0, "ast": 1.5, "b2b": False},
-}
-
-st.markdown("""
-    <style>
-    .main { background-color: #0E1117; }
-    h1, h2, h3 { color: #F1C40F !important; font-family: 'Helvetica Neue', sans-serif; }
-    .stMetric { background-color: #1E222D; padding: 15px; border-radius: 10px; border: 1px solid #2E3440; }
-    </style>
-""", unsafe_allow_html=True)
-
 def calcular_poisson_over(promedio: float, linea: float) -> float:
     k = math.floor(linea)
     prob_acumulada = 0.0
@@ -55,119 +27,113 @@ def calcular_poisson_over(promedio: float, linea: float) -> float:
         prob_acumulada += (math.pow(promedio, i) * math.exp(-promedio)) / math.factorial(i)
     return max(0.0, min(1.0, 1.0 - prob_acumulada))
 
-@st.cache_data(ttl=1800)
-def obtener_rosters_espn_dinamicos(fecha_str: str):
-    """Obtiene partidos del día y rastrea qué equipo pertenece a cada jugador en tiempo real."""
+@st.cache_data(ttl=3600)
+def obtener_jornada_y_jugadores_espn(fecha_str: str):
+    """Obtiene los equipos y todos los jugadores clave programados para jugar en la fecha seleccionada."""
     fecha_clean = fecha_str.replace('-', '')
     url = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={fecha_clean}"
-    mapa_jugador_equipo = {}
-    juegos = []
-    equipos = []
     
+    juegos = []
+    equipos_hoy = []
+    jugadores_jornada = []
+    mapa_jugador_equipo = {}
+
     try:
-        res = requests.get(url, headers=HEADERS, timeout=8)
+        res = requests.get(url, headers=HEADERS, timeout=10)
         data = res.json()
         events = data.get('events', [])
         
         for ev in events:
+            juegos.append(ev.get('name', ''))
             comp = ev.get('competitions', [])[0]
             competitors = comp.get('competitors', [])
-            juegos.append(ev.get('name', ''))
             
             for c in competitors:
-                team_name = c.get('team', {}).get('displayName', '')
-                equipos.append(team_name)
+                t_name = c.get('team', {}).get('displayName', '')
+                equipos_hoy.append(t_name)
                 
-                # Extraer atletas del equipo si vienen en la respuesta
-                athletes = c.get('leaders', [])
-                for leader in athletes:
+                # Extraer jugadores destacados/titulares de la ficha de ESPN
+                leaders = c.get('leaders', [])
+                for leader in leaders:
                     for l_item in leader.get('leaders', []):
-                        athlete_name = l_item.get('athlete', {}).get('displayName', '')
-                        if athlete_name:
-                            mapa_jugador_equipo[athlete_name] = team_name
-                            
-        return juegos, equipos, mapa_jugador_equipo
+                        ath_name = l_item.get('athlete', {}).get('displayName', '')
+                        if ath_name and ath_name not in jugadores_jornada:
+                            jugadores_jornada.append(ath_name)
+                            mapa_jugador_equipo[ath_name] = t_name
+
+        return juegos, equipos_hoy, jugadores_jornada, mapa_jugador_equipo
     except Exception:
-        return [], [], {}
+        return [], [], [], {}
 
 @st.cache_data(ttl=1800)
-def cargar_datos_jornada(fecha_str: str, temporada='2026-27'):
-    juegos, equipos_nombres, mapa_equipos_espn = obtener_rosters_espn_dinamicos(fecha_str)
+def cargar_datos_jornada_en_vivo(fecha_str: str, temporada='2026-27'):
+    juegos, equipos_hoy, jugadores_jornada, mapa_equipos = obtener_jornada_y_jugadores_espn(fecha_str)
     
-    n_juegos_total = len(juegos) if juegos else 8
-    n_equipos_total = len(equipos_nombres) if equipos_nombres else 16
-    jugadores_a_analizar = list(BENCHMARKS_JUGADORES.keys())
+    if not jugadores_jornada:
+        return pd.DataFrame(), 0, 0
+
+    nba_players_all = players.get_players()
+    mapa_nba_ids = {p['full_name'].lower(): p['id'] for p in nba_players_all}
 
     resultados = []
-    for nombre in jugadores_a_analizar:
-        prom_pts, prom_3pt, prom_min, std_pts, prom_pra, es_b2b, equipo_real = None, None, None, None, None, False, "NBA Team"
-        
-        # 1. Mapeo dinámico del equipo desde ESPN o NBA API
-        if nombre in mapa_equipos_espn:
-            equipo_real = mapa_equipos_espn[nombre]
+    for nombre in jugadores_jornada:
+        p_id = mapa_nba_ids.get(nombre.lower())
+        if not p_id:
+            continue
             
         try:
-            nba_players = players.get_players()
-            coincidencias = [p for p in nba_players if p['full_name'].lower() == nombre.lower()]
-            if coincidencias:
-                player_id = coincidencias[0]['id']
-                gamelog = playergamelog.PlayerGameLog(player_id=player_id, season=temporada, headers=HEADERS, timeout=5)
-                df = gamelog.get_data_frames()[0]
-                if not df.empty and len(df) >= 5:
-                    df_l10 = df.head(10).copy()
-                    df_l10['PTS'] = pd.to_numeric(df_l10['PTS'])
-                    df_l10['FG3M'] = pd.to_numeric(df_l10['FG3M'])
-                    df_l10['MIN'] = pd.to_numeric(df_l10['MIN'])
-                    df_l10['REB'] = pd.to_numeric(df_l10['REB'])
-                    df_l10['AST'] = pd.to_numeric(df_l10['AST'])
-                    
-                    prom_pts = df_l10['PTS'].mean()
-                    prom_3pt = df_l10['FG3M'].mean()
-                    prom_min = df_l10['MIN'].mean()
-                    std_pts = df_l10['PTS'].std()
-                    prom_pra = (df_l10['PTS'] + df_l10['REB'] + df_l10['AST']).mean()
+            gamelog = playergamelog.PlayerGameLog(player_id=p_id, season=temporada, headers=HEADERS, timeout=5)
+            df = gamelog.get_data_frames()[0]
+            if df.empty or len(df) < 3:
+                continue
+                
+            df_l10 = df.head(10).copy()
+            df_l10['PTS'] = pd.to_numeric(df_l10['PTS'])
+            df_l10['FG3M'] = pd.to_numeric(df_l10['FG3M'])
+            df_l10['FG3A'] = pd.to_numeric(df_l10.get('FG3A', 0))
+            df_l10['MIN'] = pd.to_numeric(df_l10['MIN'])
+            df_l10['REB'] = pd.to_numeric(df_l10['REB'])
+            df_l10['AST'] = pd.to_numeric(df_l10['AST'])
 
-                    # Si el equipo no venía de ESPN, tomar el código del último partido en vivo
-                    if equipo_real == "NBA Team" and 'MATCHUP' in df.columns:
-                        matchup = df.iloc[0]['MATCHUP']
-                        equipo_real = matchup.split(' ')[0] # Ej: "CLE vs. MEM" -> "CLE"
+            prom_pts = df_l10['PTS'].mean()
+            prom_3pt = df_l10['FG3M'].mean()
+            prom_3pa = df_l10['FG3A'].mean()
+            prom_min = df_l10['MIN'].mean()
+            std_pts = df_l10['PTS'].std()
+            prom_pra = (df_l10['PTS'] + df_l10['REB'] + df_l10['AST']).mean()
 
-                    df['GAME_DATE'] = pd.to_datetime(df['GAME_DATE'], format='%b %d, %Y', errors='coerce')
-                    fecha_hoy_dt = pd.to_datetime(fecha_str)
-                    fechas_previas = df[df['GAME_DATE'] < fecha_hoy_dt]['GAME_DATE']
-                    if not fechas_previas.empty:
-                        dias_descanso = (fecha_hoy_dt - fechas_previas.max()).days
-                        es_b2b = (dias_descanso == 1)
+            # Detección B2B
+            df['GAME_DATE'] = pd.to_datetime(df['GAME_DATE'], format='%b %d, %Y', errors='coerce')
+            fecha_hoy_dt = pd.to_datetime(fecha_str)
+            fechas_previas = df[df['GAME_DATE'] < fecha_hoy_dt]['GAME_DATE']
+            es_b2b = False
+            if not fechas_previas.empty:
+                dias_descanso = (fecha_hoy_dt - fechas_previas.max()).days
+                es_b2b = (dias_descanso == 1)
+
+            equipo_real = mapa_equipos.get(nombre, "NBA Team")
+
+            resultados.append({
+                'Jugador': nombre,
+                'Equipo': equipo_real,
+                'Minutos L10': round(prom_min, 1),
+                'PTS Prom Base': round(prom_pts, 1),
+                '3PT Prom Base': round(prom_3pt, 1),
+                '3PA (Intentos)': round(prom_3pa, 1),
+                'es_b2b': es_b2b,
+                'Estabilidad': "⭐ ALTA" if (std_pts <= 6.5 and not math.isnan(std_pts)) else "ESTÁNDAR",
+                'PRA Promedios': round(prom_pra, 1),
+                'Varianza (std)': round(std_pts, 1) if not math.isnan(std_pts) else 0.0
+            })
         except Exception:
-            pass
-
-        if prom_pts is None:
-            bm = BENCHMARKS_JUGADORES.get(nombre, {"pts": 18.5, "3pt": 1.5, "min": 30.0, "std": 5.5, "reb": 4.5, "ast": 4.0, "b2b": False})
-            prom_pts = bm["pts"]
-            prom_3pt = bm["3pt"]
-            prom_min = bm["min"]
-            std_pts = bm["std"]
-            prom_pra = bm["pts"] + bm["reb"] + bm["ast"]
-            es_b2b = bm.get("b2b", False)
-
-        resultados.append({
-            'Jugador': nombre,
-            'Equipo': equipo_real,
-            'Minutos L10': round(prom_min, 1),
-            'PTS Base': round(prom_pts, 1),
-            '3PT Base': round(prom_3pt, 1),
-            'es_b2b': es_b2b,
-            'Estabilidad': "⭐ ALTA" if std_pts <= 6.5 else "ESTÁNDAR",
-            'PRA Base': round(prom_pra, 1),
-            'Varianza (std)': round(std_pts, 1)
-        })
+            continue
 
     df_res = pd.DataFrame(resultados).drop_duplicates(subset=['Jugador'])
-    return df_res, n_juegos_total, n_equipos_total
+    return df_res, len(juegos), len(equipos_hoy)
 
 # --- CABECERA ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
-st.caption("Motor cuantitativo con asignación dinámica de equipos en vivo")
+st.caption("Motor cuantitativo 100% dinámico — Escaneo en vivo de la plantilla del día")
 
 # --- BARRA LATERAL ---
 st.sidebar.header("🎛️ Panel de Control")
@@ -179,8 +145,8 @@ fecha_defecto = now_et.date()
 fecha_seleccionada = st.sidebar.date_input("Fecha de Jornada NBA", value=fecha_defecto)
 fecha_str = fecha_seleccionada.strftime('%Y-%m-%d')
 
-with st.spinner(f"⚡ Escaneando plantillas y proyecciones ({fecha_str})..."):
-    df_raw, n_juegos, n_equipos = cargar_datos_jornada(fecha_str)
+with st.spinner(f"⚡ Escaneando todos los partidos y jugadores activos ({fecha_str})..."):
+    df_raw, n_juegos, n_equipos = cargar_datos_jornada_en_vivo(fecha_str)
 
 st.sidebar.markdown("---")
 st.sidebar.header("🚑 Reporte de Bajas / Lesiones")
@@ -193,11 +159,12 @@ if st.sidebar.button("🔄 Escanear Jornada en Vivo", use_container_width=True):
     st.cache_data.clear()
     st.rerun()
 
-min_minutos = st.sidebar.slider("Minutos Mínimos Promedio", 15, 36, 25)
+min_minutos = st.sidebar.slider("Minutos Mínimos Promedio", 15, 36, 22)
 solo_alta_estabilidad = st.sidebar.checkbox("Mostrar solo estabilidad ⭐ ALTA", False)
+filtro_volumen_3pt = st.sidebar.checkbox("Filtrar tiradores con al menos 5.5 intentos (3PA)", False)
 
 if df_raw.empty:
-    st.warning("⚠️ No se pudieron cargar los partidos.")
+    st.warning(f"⚠️ No se detectaron partidos o datos en vivo para la fecha {fecha_str}. Intenta seleccionando la fecha de hoy o de mañana en la barra lateral.")
 else:
     equipos_con_baja = set()
     for b in bajas_confirmadas:
@@ -214,46 +181,50 @@ else:
         f_fatiga = 0.94 if fila['es_b2b'] else 1.00
         f_usage = 1.15 if fila['Equipo'] in equipos_con_baja and fila['Equipo'] != "NBA Team" else 1.00
         
-        pts_proj = fila['PTS Base'] * f_fatiga * f_usage
-        triples_proj = fila['3PT Base'] * f_fatiga * f_usage
+        pts_proj = fila['PTS Prom Base'] * f_fatiga * f_usage
+        triples_proj = fila['3PT Prom Base'] * f_fatiga * f_usage
 
         prob_pts = calcular_poisson_over(pts_proj, 19.5)
         prob_3pt = calcular_poisson_over(triples_proj, 1.5)
 
+        colchon_pts = pts_proj - 19.5
         descanso_str = "⚠️ B2B (-6%)" if fila['es_b2b'] else ("🚀 USAGE (+15%)" if f_usage > 1.0 else "🟢 NORMAL")
 
         procesados.append({
             'Jugador': j_nombre,
             'Equipo': fila['Equipo'],
             'Minutos L10': fila['Minutos L10'],
-            'PTS Prom': fila['PTS Base'],
             'PTS Proyectados': round(pts_proj, 1),
+            'Colchón PTS (>19.5)': round(colchon_pts, 1),
             'Estado Carga': descanso_str,
             'Estabilidad': fila['Estabilidad'],
             'Prob >19.5 PTS (%)': round(prob_pts * 100, 1),
-            'Triples Prom': fila['3PT Base'],
+            'Triples Prom': fila['3PT Prom Base'],
+            '3PA (Intentos)': fila['3PA (Intentos)'],
             'Prob >1.5 Triples (%)': round(prob_3pt * 100, 1),
-            'PRA Promedio': fila['PRA Base'],
+            'PRA Promedios': fila['PRA Promedios'],
             'Varianza (std)': fila['Varianza (std)']
         })
 
     df_data = pd.DataFrame(procesados)
 
-    # --- MÉTRICAS GENERALES ---
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Partidos Hoy", f"{n_juegos}")
     col2.metric("Equipos en Cancha", f"{n_equipos}")
     col3.metric("Jugadores Escaneados", f"{len(df_data)}")
-    top_pick = df_data.sort_values(by='Prob >19.5 PTS (%)', ascending=False).iloc[0]
-    col4.metric("Top Pick Anotación", f"{top_pick['Jugador']}", f"{top_pick['Prob >19.5 PTS (%)']}% Prob")
+    if not df_data.empty:
+        top_pick = df_data.sort_values(by='Prob >19.5 PTS (%)', ascending=False).iloc[0]
+        col4.metric("Top Pick Anotación", f"{top_pick['Jugador']}", f"{top_pick['Prob >19.5 PTS (%)']}% Prob")
 
     st.markdown("---")
 
     df_filtrado = df_data[df_data['Minutos L10'] >= min_minutos]
     if solo_alta_estabilidad:
         df_filtrado = df_filtrado[df_filtrado['Estabilidad'] == "⭐ ALTA"]
+    if filtro_volumen_3pt:
+        df_filtrado = df_filtrado[df_filtrado['3PA (Intentos)'] >= 5.5]
 
-    st.subheader("📊 Ranking de Valor Esperado (+EV)")
+    st.subheader("📊 Ranking de Valor Esperado (+EV) — Datos en Vivo")
     criterio_orden = st.radio("Ordenar por:", ["Puntos (>19.5 PTS)", "Triples (>1.5 3PT)", "PRA (Combo)"], horizontal=True)
     
     if criterio_orden == "Puntos (>19.5 PTS)":
@@ -261,7 +232,7 @@ else:
     elif criterio_orden == "Triples (>1.5 3PT)":
         df_mostrar = df_filtrado.sort_values(by='Prob >1.5 Triples (%)', ascending=False)
     else:
-        df_mostrar = df_filtrado.sort_values(by='PRA Promedio', ascending=False)
+        df_mostrar = df_filtrado.sort_values(by='PRA Promedios', ascending=False)
 
     st.dataframe(
         df_mostrar,
