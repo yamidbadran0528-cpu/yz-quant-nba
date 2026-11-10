@@ -1,5 +1,6 @@
 import math
 import json
+import requests
 import datetime
 import pandas as pd
 import streamlit as st
@@ -26,8 +27,17 @@ def calcular_poisson_over(promedio: float, linea: float) -> float:
         prob_acumulada += (math.pow(promedio, i) * math.exp(-promedio)) / math.factorial(i)
     return max(0.0, min(1.0, 1.0 - prob_acumulada))
 
-@st.cache_data(ttl=300)
-def cargar_datos_locales():
+@st.cache_data(ttl=60)
+def cargar_datos_automatizados():
+    """Lee directamente el archivo generado por GitHub Actions via URL Raw para sincronización instantánea."""
+    url_raw = "https://raw.githubusercontent.com/yamidbadran0528-cpu/yz-quant-nba/main/datos_nba_hoy.json"
+    try:
+        res = requests.get(url_raw, timeout=5)
+        if res.status_code == 200:
+            return pd.DataFrame(res.json())
+    except Exception:
+        pass
+        
     try:
         with open("datos_nba_hoy.json", "r", encoding="utf-8") as f:
             datos = json.load(f)
@@ -48,7 +58,11 @@ fecha_str = now_et.strftime('%Y-%m-%d')
 
 st.sidebar.info(f"📅 Jornada: {fecha_str}")
 
-df_raw = cargar_datos_locales()
+df_raw = cargar_datos_automatizados()
+
+if st.sidebar.button("🔄 Recargar Datos de Hoy", use_container_width=True):
+    st.cache_data.clear()
+    st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.header("🚑 Reporte de Bajas / Lesiones")
@@ -62,7 +76,7 @@ solo_alta_estabilidad = st.sidebar.checkbox("Mostrar solo estabilidad ⭐ ALTA",
 filtro_volumen_3pt = st.sidebar.checkbox("Filtrar tiradores con al menos 5.5 intentos (3PA)", False)
 
 if df_raw.empty:
-    st.error("⚠️ El archivo de datos del día no se ha encontrado. Se ejecutará en la próxima corrida del servidor.")
+    st.error("⚠️ Sincronizando datos con GitHub... Presiona el botón 'Recargar Datos de Hoy' en 5 segundos.")
 else:
     equipos_con_baja = set()
     for b in bajas_confirmadas:
@@ -177,5 +191,6 @@ else:
         file_name=f"reporte_yz_quant_{fecha_str}.csv",
         mime="text/csv"
     )
+
 
 
