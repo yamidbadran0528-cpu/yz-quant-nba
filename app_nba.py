@@ -13,20 +13,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-BASE_JUGADORES_BACKUP = [
-    {"Jugador": "Victor Wembanyama", "Equipo": "San Antonio Spurs", "Minutos L10": 30.3, "PTS Base": 29.1, "3PT Base": 1.9, "3PA (Intentos)": 6.8, "Estabilidad": "⭐ ALTA", "PRA Base": 44.1, "Varianza (std)": 12.5},
-    {"Jugador": "De'Aaron Fox", "Equipo": "San Antonio Spurs", "Minutos L10": 35.1, "PTS Base": 24.2, "3PT Base": 1.9, "3PA (Intentos)": 6.1, "Estabilidad": "ESTÁNDAR", "PRA Base": 34.5, "Varianza (std)": 6.8},
-    {"Jugador": "Giannis Antetokounmpo", "Equipo": "Miami Heat", "Minutos L10": 33.8, "PTS Base": 29.8, "3PT Base": 0.4, "3PA (Intentos)": 1.1, "Estabilidad": "⭐ ALTA", "PRA Base": 47.1, "Varianza (std)": 6.2},
-    {"Jugador": "Stephen Curry", "Equipo": "Golden State Warriors", "Minutos L10": 32.0, "PTS Base": 25.2, "3PT Base": 4.2, "3PA (Intentos)": 10.5, "Estabilidad": "⭐ ALTA", "PRA Base": 35.8, "Varianza (std)": 5.8},
-    {"Jugador": "Shai Gilgeous-Alexander", "Equipo": "Oklahoma City Thunder", "Minutos L10": 34.2, "PTS Base": 28.5, "3PT Base": 1.8, "3PA (Intentos)": 5.2, "Estabilidad": "⭐ ALTA", "PRA Base": 40.2, "Varianza (std)": 5.1},
-    {"Jugador": "Jayson Tatum", "Equipo": "Boston Celtics", "Minutos L10": 31.8, "PTS Base": 26.4, "3PT Base": 2.8, "3PA (Intentos)": 8.2, "Estabilidad": "ESTÁNDAR", "PRA Base": 39.8, "Varianza (std)": 6.6},
-    {"Jugador": "Cade Cunningham", "Equipo": "Detroit Pistons", "Minutos L10": 34.0, "PTS Base": 22.9, "3PT Base": 2.1, "3PA (Intentos)": 6.2, "Estabilidad": "⭐ ALTA", "PRA Base": 36.0, "Varianza (std)": 6.4},
-    {"Jugador": "Ty Jerome", "Equipo": "Memphis Grizzlies", "Minutos L10": 28.5, "PTS Base": 18.6, "3PT Base": 2.4, "3PA (Intentos)": 5.5, "Estabilidad": "⭐ ALTA", "PRA Base": 26.2, "Varianza (std)": 4.1},
-    {"Jugador": "Andrew Nembhard", "Equipo": "Indiana Pacers", "Minutos L10": 33.1, "PTS Base": 17.8, "3PT Base": 2.5, "3PA (Intentos)": 5.8, "Estabilidad": "⭐ ALTA", "PRA Base": 26.8, "Varianza (std)": 4.7},
-    {"Jugador": "Immanuel Quickley", "Equipo": "Toronto Raptors", "Minutos L10": 31.8, "PTS Base": 17.4, "3PT Base": 2.4, "3PA (Intentos)": 6.9, "Estabilidad": "⭐ ALTA", "PRA Base": 26.3, "Varianza (std)": 5.2},
-    {"Jugador": "Nikola Jokic", "Equipo": "Denver Nuggets", "Minutos L10": 36.8, "PTS Base": 29.5, "3PT Base": 1.5, "3PA (Intentos)": 4.2, "Estabilidad": "⭐ ALTA", "PRA Base": 52.4, "Varianza (std)": 6.1},
-]
-
 st.markdown("""
     <style>
     .main { background-color: #0E1117; }
@@ -44,23 +30,30 @@ def calcular_poisson_over(promedio: float, linea: float) -> float:
 
 def cargar_datos_automatizados():
     ts = int(time.time())
-    url_raw = f"https://raw.githubusercontent.com/yamidbadran0528-cpu/yz-quant-nba/main/datos_nba_hoy.json?v={ts}"
+    url_raw = f"https://raw.githubusercontent.com/yamidbadran0528-cpu/yz-quant-nba/main/datos_nba_hoy.json?t={ts}"
+    headers = {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    }
     try:
-        res = requests.get(url_raw, timeout=5)
+        res = requests.get(url_raw, headers=headers, timeout=6)
         if res.status_code == 200:
             datos = res.json()
-            if datos and len(datos) > 0:
-                return pd.DataFrame(datos), "🟢 Datos sincronizados en vivo desde GitHub"
+            if isinstance(datos, list) and len(datos) > 0:
+                return pd.DataFrame(datos), "🟢 Datos sincronizados en vivo en la fecha"
     except Exception:
         pass
+        
     try:
         with open("datos_nba_hoy.json", "r", encoding="utf-8") as f:
             datos = json.load(f)
-            if datos and len(datos) > 0:
-                return pd.DataFrame(datos), "🟡 Datos cargados localmente"
+            if isinstance(datos, list) and len(datos) > 0:
+                return pd.DataFrame(datos), "🟡 Datos cargados desde archivo local"
     except Exception:
         pass
-    return pd.DataFrame(BASE_JUGADORES_BACKUP), "⚡ Datos cargados desde matriz de respaldo"
+
+    return pd.DataFrame(), "⚠️ Esperando sincronización del Workflow"
 
 # --- CABECERA ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
@@ -72,10 +65,14 @@ fecha_str = now_et.strftime('%Y-%m-%d')
 df_raw, estado_conexion = cargar_datos_automatizados()
 st.caption(f"{estado_conexion} | Fecha de consulta: {fecha_str}")
 
+if df_raw.empty:
+    st.warning("⚠️ No hay jugadores programados cargados para la jornada actual. Ejecuta el Workflow en GitHub Actions.")
+    st.stop()
+
 # --- BARRA LATERAL ---
 st.sidebar.header("🎛️ Panel de Control")
 
-linea_evaluada_pts = st.sidebar.selectbox("Línea Base Puntos (PTS)", [19.5, 24.5, 27.5], index=0)
+linea_evaluada_pts = st.sidebar.selectbox("Línea Base Puntos (PTS)", [19.5, 24.5, 27.5], index=1)
 
 if st.sidebar.button("🔄 Recargar Datos de Hoy", use_container_width=True):
     st.cache_data.clear()
@@ -85,10 +82,10 @@ st.sidebar.markdown("---")
 st.sidebar.header("🚑 Reporte de Bajas / Lesiones")
 bajas_confirmadas = st.sidebar.multiselect(
     "Selecciona los jugadores descartados (OUT):",
-    options=df_raw['Jugador'].tolist() if not df_raw.empty else []
+    options=df_raw['Jugador'].tolist() if 'Jugador' in df_raw.columns else []
 )
 
-min_minutos = st.sidebar.slider("Minutos Mínimos Promedio", 15, 36, 22)
+min_minutos = st.sidebar.slider("Minutos Mínimos Promedio", 15, 36, 20)
 solo_alta_estabilidad = st.sidebar.checkbox("Mostrar solo estabilidad ⭐ ALTA", False)
 filtro_volumen_3pt = st.sidebar.checkbox("Filtrar tiradores con al menos 5.5 intentos (3PA)", False)
 
@@ -134,7 +131,7 @@ for _, fila in df_raw.iterrows():
 df_data = pd.DataFrame(procesados)
 
 col1, col2, col3 = st.columns(3)
-col1.metric("Jugadores Monitoreados", f"{len(df_data)}")
+col1.metric("Jugadores Monitoreados Hoy", f"{len(df_data)}")
 top_pick = df_data.sort_values(by=f'Prob >{linea_evaluada_pts} PTS (%)', ascending=False).iloc[0]
 col2.metric("Top Pick Anotación", f"{top_pick['Jugador']}", f"{top_pick[f'Prob >{linea_evaluada_pts} PTS (%)']}% Prob")
 top_3pt = df_data.sort_values(by='Prob >1.5 Triples (%)', ascending=False).iloc[0]
@@ -176,13 +173,13 @@ st.caption("Selecciona los logros e ingresa las cuotas reales de Rushbet para au
 col_c1, col_c2, col_c3 = st.columns(3)
 with col_c1:
     j1 = st.selectbox("Selección 1 (Jugador)", df_mostrar['Jugador'].tolist(), index=0)
-    c1 = st.number_input(f"Cuota Rushbet ({j1[:8]}...)", min_value=1.01, value=1.40, step=0.05)
+    c1 = st.number_input(f"Cuota Rushbet ({j1[:8]}...)", min_value=1.01, value=1.24, step=0.01)
 with col_c2:
     j2 = st.selectbox("Selección 2 (Jugador)", df_mostrar['Jugador'].tolist(), index=min(1, len(df_mostrar)-1))
-    c2 = st.number_input(f"Cuota Rushbet ({j2[:8]}...)", min_value=1.01, value=1.45, step=0.05)
+    c2 = st.number_input(f"Cuota Rushbet ({j2[:8]}...)", min_value=1.01, value=1.30, step=0.01)
 with col_c3:
     j3 = st.selectbox("Selección 3 (Jugador - Opcional)", ["-- Ninguno --"] + df_mostrar['Jugador'].tolist(), index=0)
-    c3 = st.number_input("Cuota Rushbet (Tercer Logro)", min_value=1.01, value=1.30, step=0.05) if j3 != "-- Ninguno --" else 1.0
+    c3 = st.number_input("Cuota Rushbet (Tercer Logro)", min_value=1.01, value=1.25, step=0.01) if j3 != "-- Ninguno --" else 1.0
 
 p1 = df_mostrar[df_mostrar['Jugador'] == j1][f'Prob >{linea_evaluada_pts} PTS (%)'].values[0] / 100
 p2 = df_mostrar[df_mostrar['Jugador'] == j2]['Prob >1.5 Triples (%)'].values[0] / 100
@@ -197,11 +194,3 @@ col_res1, col_res2, col_res3 = st.columns(3)
 col_res1.metric("Cuota Combinada Real", f"@{cuota_total:.2f}")
 col_res2.metric("Probabilidad Real Acumulada", f"{prob_real*100:.1f}%")
 col_res3.metric("Ventaja Matemática REAL (+EV)", f"{ev_margin:+.1f}%", delta_color="normal" if ev_margin > 0 else "inverse")
-
-csv = df_mostrar.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="📥 Descargar Reporte Filtrado (CSV)",
-    data=csv,
-    file_name=f"reporte_yz_quant_{fecha_str}.csv",
-    mime="text/csv"
-)
