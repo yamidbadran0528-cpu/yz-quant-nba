@@ -37,11 +37,11 @@ def cargar_datos_automatizados():
         'Expires': '0'
     }
     try:
-        res = requests.get(url_raw, headers=headers, timeout=6)
+        res = requests.get(url_raw, headers=headers, timeout=5)
         if res.status_code == 200:
             datos = res.json()
             if isinstance(datos, list) and len(datos) > 0:
-                return pd.DataFrame(datos), "🟢 Datos sincronizados en vivo"
+                return pd.DataFrame(datos), "🟢 Sincronizado en vivo desde GitHub"
     except Exception:
         pass
         
@@ -49,13 +49,13 @@ def cargar_datos_automatizados():
         with open("datos_nba_hoy.json", "r", encoding="utf-8") as f:
             datos = json.load(f)
             if isinstance(datos, list) and len(datos) > 0:
-                return pd.DataFrame(datos), "🟡 Datos cargados localmente"
+                return pd.DataFrame(datos), "🟡 Cargado desde almacenamiento local"
     except Exception:
         pass
 
     return pd.DataFrame(), "⚠️ Esperando sincronización del Workflow"
 
-# --- 1. DIBUJAR BARRA LATERAL SIEMPRE DE PRIMERO (NUNCA DESAPARECE) ---
+# --- BARRA LATERAL ---
 st.sidebar.header("🎛️ Panel de Control")
 
 if st.sidebar.button("🔄 Recargar Datos de Hoy", use_container_width=True):
@@ -67,7 +67,7 @@ min_minutos = st.sidebar.slider("Minutos Mínimos Promedio", 15, 36, 20)
 solo_alta_estabilidad = st.sidebar.checkbox("Mostrar solo estabilidad ⭐ ALTA", False)
 filtro_volumen_3pt = st.sidebar.checkbox("Filtrar tiradores con al menos 5.5 intentos (3PA)", False)
 
-# --- 2. CABECERA PRINCIPAL ---
+# --- CABECERA PRINCIPAL ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
 
 now_utc = datetime.datetime.now(datetime.timezone.utc)
@@ -78,11 +78,9 @@ df_raw, estado_conexion = cargar_datos_automatizados()
 st.caption(f"{estado_conexion} | Fecha de consulta: {fecha_str}")
 
 if df_raw.empty:
-    st.warning("⚠️ El archivo de la fecha actual se está generando o el Workflow en GitHub Actions aún no ha terminado.")
-    st.info("💡 **¿Qué hacer?** Revisa que la franja en GitHub Actions esté en verde y toca el botón **'🔄 Recargar Datos de Hoy'** en la barra lateral.")
+    st.warning("⚠️ El Workflow de GitHub Actions está extrayendo la cartelera oficial de hoy. Ejecuta 'Run workflow' en Actions.")
     st.stop()
 
-# --- 3. REPORTE DE BAJAS Y TABLA DE JUGADORES ---
 st.sidebar.markdown("---")
 st.sidebar.header("🚑 Reporte de Bajas / Lesiones")
 bajas_confirmadas = st.sidebar.multiselect(
