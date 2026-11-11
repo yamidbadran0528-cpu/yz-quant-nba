@@ -80,14 +80,11 @@ def obtener_datos_jornada_hoy():
     return jugadores_hoy, mapa_enfrentamientos
 
 def obtener_l10_desde_espn(ath_id):
-    """ Descarga el Game Log real del atleta desde ESPN y calcula los promedios L10 en vivo """
     url_gamelog = f"https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/{ath_id}/gamelog"
     try:
         res = requests.get(url_gamelog, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
         if res.status_code == 200:
             data = res.json()
-            events = data.get('events', {})
-            # Extraer registros de partidos individuales
             season_types = data.get('seasonTypes', [])
             games = []
             for st_type in season_types:
@@ -96,7 +93,6 @@ def obtener_l10_desde_espn(ath_id):
                     events_list = cat.get('events', [])
                     for ev in events_list:
                         stats = ev.get('stats', [])
-                        # En ESPN: stats = [MIN, FG, FG%, 3PT, 3P%, FT, FT%, REB, AST, BLK, STL, PF, TO, PTS]
                         if len(stats) >= 14:
                             try:
                                 min_val = float(stats[0].split('-')[0]) if '-' in str(stats[0]) else float(stats[0])
@@ -118,17 +114,14 @@ def obtener_l10_desde_espn(ath_id):
                             except Exception:
                                 continue
             if games:
-                # Tomamos los últimos 10 partidos reales
                 l10 = games[:10]
                 min_avg = round(sum(g['MIN'] for g in l10) / len(l10), 1)
                 pts_avg = round(sum(g['PTS'] for g in l10) / len(l10), 1)
                 fg3m_avg = round(sum(g['3PM'] for g in l10) / len(l10), 1)
                 fg3a_avg = round(sum(g['3PA'] for g in l10) / len(l10), 1)
                 pra_avg = round(sum(g['PRA'] for g in l10) / len(l10), 1)
-                
                 pts_list = [g['PTS'] for g in l10]
                 std_pts = round(float(np.std(pts_list)), 1) if len(pts_list) > 1 else 5.5
-                
                 return {
                     'min': min_avg,
                     'pts': pts_avg,
@@ -162,9 +155,7 @@ def actualizar_datos_nba():
         equipo = item['equipo']
         ath_id = item['ath_id']
         
-        # Obtenemos los últimos 10 partidos ($L10$) en vivo desde ESPN
         l10_stats = obtener_l10_desde_espn(ath_id)
-        
         if not l10_stats:
             continue
 
@@ -175,11 +166,10 @@ def actualizar_datos_nba():
         pra_raw = l10_stats['pra']
         std_pts = l10_stats['std']
 
-        # Filtramos jugadores suplentes o con poco protagonismo (< 15 MIN o < 10 PTS)
         if min_avg < 15.0 or pts_raw < 10.0:
             continue
 
-        rival = mapa_enfrentamientos.get(equipo, "")
+        rival = mapa_enfrentamientos.get(equipo, "N/A")
         factor_defensa = factores_defensivos.get(rival, 1.00)
 
         pts_avg = round(pts_raw * factor_defensa, 1)
@@ -188,6 +178,8 @@ def actualizar_datos_nba():
         dataset.append({
             "Jugador": nombre,
             "Equipo": equipo,
+            "Rival": f"vs {rival}" if rival != "N/A" else "N/A",
+            "Factor Defensivo": round(factor_defensa, 2),
             "Minutos L10": min_avg,
             "PTS Base": pts_avg,
             "3PT Base": fg3m_avg,
@@ -196,11 +188,11 @@ def actualizar_datos_nba():
             "PRA Base": pra_avg,
             "Varianza (std)": std_pts
         })
-        print(f"✅ L10 Real: {nombre} ({equipo}) vs {rival} -> {pts_avg} PTS (L10 raw: {pts_raw})")
+        print(f"✅ L10 Real: {nombre} ({equipo}) vs {rival} -> {pts_avg} PTS (Def Factor: {factor_defensa}x)")
 
     with open("datos_nba_hoy.json", "w", encoding="utf-8") as f:
         json.dump(dataset, f, indent=4, ensure_ascii=False)
-    print(f"🎉 Proceso 100% dinámico finalizado. {len(dataset)} jugadores guardados con L10 real.")
+    print(f"🎉 Proceso 100% dinámico finalizado. {len(dataset)} jugadores guardados con L10 real y factores defensivos.")
 
 if __name__ == "__main__":
     actualizar_datos_nba()
