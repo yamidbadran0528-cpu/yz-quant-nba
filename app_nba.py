@@ -10,7 +10,7 @@ st.set_page_config(
     page_title="YZ Quant NBA — Platform (+EV)",
     page_icon="🤖",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 st.markdown("""
@@ -41,7 +41,7 @@ def cargar_datos_automatizados():
         if res.status_code == 200:
             datos = res.json()
             if isinstance(datos, list) and len(datos) > 0:
-                return pd.DataFrame(datos), "🟢 Datos sincronizados en vivo en la fecha"
+                return pd.DataFrame(datos), "🟢 Datos sincronizados en vivo"
     except Exception:
         pass
         
@@ -49,13 +49,25 @@ def cargar_datos_automatizados():
         with open("datos_nba_hoy.json", "r", encoding="utf-8") as f:
             datos = json.load(f)
             if isinstance(datos, list) and len(datos) > 0:
-                return pd.DataFrame(datos), "🟡 Datos cargados desde archivo local"
+                return pd.DataFrame(datos), "🟡 Datos cargados localmente"
     except Exception:
         pass
 
     return pd.DataFrame(), "⚠️ Esperando sincronización del Workflow"
 
-# --- CABECERA ---
+# --- 1. DIBUJAR BARRA LATERAL SIEMPRE DE PRIMERO (NUNCA DESAPARECE) ---
+st.sidebar.header("🎛️ Panel de Control")
+
+if st.sidebar.button("🔄 Recargar Datos de Hoy", use_container_width=True):
+    st.cache_data.clear()
+    st.rerun()
+
+linea_evaluada_pts = st.sidebar.selectbox("Línea Base Puntos (PTS)", [19.5, 24.5, 27.5], index=1)
+min_minutos = st.sidebar.slider("Minutos Mínimos Promedio", 15, 36, 20)
+solo_alta_estabilidad = st.sidebar.checkbox("Mostrar solo estabilidad ⭐ ALTA", False)
+filtro_volumen_3pt = st.sidebar.checkbox("Filtrar tiradores con al menos 5.5 intentos (3PA)", False)
+
+# --- 2. CABECERA PRINCIPAL ---
 st.title("🤖 YZ Quant NBA — Platform (+EV)")
 
 now_utc = datetime.datetime.now(datetime.timezone.utc)
@@ -66,28 +78,17 @@ df_raw, estado_conexion = cargar_datos_automatizados()
 st.caption(f"{estado_conexion} | Fecha de consulta: {fecha_str}")
 
 if df_raw.empty:
-    st.warning("⚠️ No hay jugadores programados cargados para la jornada actual. Ejecuta el Workflow en GitHub Actions.")
+    st.warning("⚠️ El archivo de la fecha actual se está generando o el Workflow en GitHub Actions aún no ha terminado.")
+    st.info("💡 **¿Qué hacer?** Revisa que la franja en GitHub Actions esté en verde y toca el botón **'🔄 Recargar Datos de Hoy'** en la barra lateral.")
     st.stop()
 
-# --- BARRA LATERAL ---
-st.sidebar.header("🎛️ Panel de Control")
-
-linea_evaluada_pts = st.sidebar.selectbox("Línea Base Puntos (PTS)", [19.5, 24.5, 27.5], index=1)
-
-if st.sidebar.button("🔄 Recargar Datos de Hoy", use_container_width=True):
-    st.cache_data.clear()
-    st.rerun()
-
+# --- 3. REPORTE DE BAJAS Y TABLA DE JUGADORES ---
 st.sidebar.markdown("---")
 st.sidebar.header("🚑 Reporte de Bajas / Lesiones")
 bajas_confirmadas = st.sidebar.multiselect(
     "Selecciona los jugadores descartados (OUT):",
     options=df_raw['Jugador'].tolist() if 'Jugador' in df_raw.columns else []
 )
-
-min_minutos = st.sidebar.slider("Minutos Mínimos Promedio", 15, 36, 20)
-solo_alta_estabilidad = st.sidebar.checkbox("Mostrar solo estabilidad ⭐ ALTA", False)
-filtro_volumen_3pt = st.sidebar.checkbox("Filtrar tiradores con al menos 5.5 intentos (3PA)", False)
 
 equipos_con_baja = set()
 for b in bajas_confirmadas:
