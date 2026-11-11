@@ -2,16 +2,7 @@ import json
 import time
 import requests
 import datetime
-import pandas as pd
-from nba_api.stats.static import players
-from nba_api.stats.endpoints import playergamelog
-
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'Accept': 'application/json, text/plain, */*',
-    'Origin': 'https://www.nba.com',
-    'Referer': 'https://www.nba.com/',
-}
+import numpy as np
 
 def obtener_factores_defensivos_dinamicos():
     url_standings = "https://site.api.espn.com/apis/v2/sports/basketball/nba/standings"
@@ -38,7 +29,7 @@ def obtener_factores_defensivos_dinamicos():
                 for t, opp in pts_permitidos.items():
                     factores_defensivos[t] = round(max(0.90, min(1.10, opp / prom_liga)), 3)
     except Exception as e:
-        print(f"Error consultando defensas ESPN: {e}")
+        print(f"Error consultando defensas en vivo: {e}")
     return factores_defensivos
 
 def obtener_datos_jornada_hoy():
@@ -77,87 +68,115 @@ def obtener_datos_jornada_hoy():
                             for ath in athletes:
                                 j_nombre = ath.get('fullName') or ath.get('displayName')
                                 ath_id = ath.get('id')
-                                
-                                # Leemos métricas oficiales directamente del perfil de ESPN
-                                ppg = float(ath.get('ppg', 0)) if ath.get('ppg') else 0.0
-                                rpg = float(ath.get('rpg', 0)) if ath.get('rpg') else 0.0
-                                apg = float(ath.get('apg', 0)) if ath.get('apg') else 0.0
-                                
-                                if j_nombre:
+                                if j_nombre and ath_id:
                                     jugadores_hoy.append({
                                         'nombre': j_nombre,
                                         'equipo': team_name,
-                                        'espn_id': ath_id,
-                                        'espn_ppg': ppg,
-                                        'espn_rpg': rpg,
-                                        'espn_apg': apg
+                                        'ath_id': ath_id
                                     })
     except Exception as e:
-        print(f"Error consultando ESPN: {e}")
+        print(f"Error consultando cartelera ESPN: {e}")
         
     return jugadores_hoy, mapa_enfrentamientos
 
+def obtener_l10_desde_espn(ath_id):
+    """ Descarga el Game Log real del atleta desde ESPN y calcula los promedios L10 en vivo """
+    url_gamelog = f"https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/{ath_id}/gamelog"
+    try:
+        res = requests.get(url_gamelog, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            events = data.get('events', {})
+            # Extraer registros de partidos individuales
+            season_types = data.get('seasonTypes', [])
+            games = []
+            for st_type in season_types:
+                categories = st_type.get('categories', [])
+                for cat in categories:
+                    events_list = cat.get('events', [])
+                    for ev in events_list:
+                        stats = ev.get('stats', [])
+                        # En ESPN: stats = [MIN, FG, FG%, 3PT, 3P%, FT, FT%, REB, AST, BLK, STL, PF, TO, PTS]
+                        if len(stats) >= 14:
+                            try:
+                                min_val = float(stats[0].split('-')[0]) if '-' in str(stats[0]) else float(stats[0])
+                                fg3_str = str(stats[3])
+                                fg3m = float(fg3_str.split('-')[0]) if '-' in fg3_str else 0.0
+                                fg3a = float(fg3_str.split('-')[1]) if '-' in fg3_str else 0.0
+                                reb_val = float(stats[7])
+                                ast_val = float(stats[8])
+                                pts_val = float(stats[13])
+                                games.append({
+                                    'MIN': min_val,
+                                    'PTS': pts_val,
+                                    '3PM': fg3m,
+                                    '3PA': fg3a,
+                                    'REB': reb_val,
+                                    'AST': ast_val,
+                                    'PRA': pts_val + reb_val + ast_val
+                                })
+                            except Exception:
+                                continue
+            if games:
+                # Tomamos los últimos 10 partidos reales
+                l10 = games[:10]
+                min_avg = round(sum(g['MIN'] for g in l10) / len(l10), 1)
+                pts_avg = round(sum(g['PTS'] for g in l10) / len(l10), 1)
+                fg3m_avg = round(sum(g['3PM'] for g in l10) / len(l10), 1)
+                fg3a_avg = round(sum(g['3PA'] for g in l10) / len(l10), 1)
+                pra_avg = round(sum(g['PRA'] for g in l10) / len(l10), 1)
+                
+                pts_list = [g['PTS'] for g in l10]
+                std_pts = round(float(np.std(pts_list)), 1) if len(pts_list) > 1 else 5.5
+                
+                return {
+                    'min': min_avg,
+                    'pts': pts_avg,
+                    '3pt': fg3m_avg,
+                    '3pa': fg3a_avg,
+                    'pra': pra_avg,
+                    'std': std_pts
+                }
+    except Exception:
+        pass
+    return None
+
 def actualizar_datos_nba():
-    print("🚀 Consultando factores defensivos de los 30 equipos en vivo...")
+    print("🚀 Consultando tabla defensiva global en vivo...")
     factores_defensivos = obtener_factores_defensivos_dinamicos()
     
-    print("🚀 Extrayendo cartelera y nóminas activas de HOY de forma 100% dinámica...")
+    print("🚀 Extrayendo nóminas activas de HOY...")
     jugadores_hoy, mapa_enfrentamientos = obtener_datos_jornada_hoy()
-    print(f"🏀 Jugadores detectados en plantillas oficiales de hoy: {len(jugadores_hoy)}")
+    print(f"🏀 Jugadores detectados en plantillas de hoy: {len(jugadores_hoy)}")
     
     if not jugadores_hoy:
-        print("⚠️ No hay partidos programados para la fecha de hoy.")
+        print("⚠️ No hay partidos programados para hoy.")
         with open("datos_nba_hoy.json", "w", encoding="utf-8") as f:
             json.dump([], f)
         return
-
-    nba_players_all = players.get_players()
-    mapa_ids = {p['full_name'].lower(): p['id'] for p in nba_players_all}
 
     dataset = []
     
     for item in jugadores_hoy:
         nombre = item['nombre']
         equipo = item['equipo']
+        ath_id = item['ath_id']
         
-        pts_raw, fg3m_avg, fg3a_avg, min_avg, pra_raw, std_pts = None, None, None, None, None, None
+        # Obtenemos los últimos 10 partidos ($L10$) en vivo desde ESPN
+        l10_stats = obtener_l10_desde_espn(ath_id)
         
-        # 1. Intentamos refrescar L10 en vivo desde NBA API
-        pid = mapa_ids.get(nombre.lower())
-        if pid:
-            try:
-                time.sleep(0.3)
-                gamelog = playergamelog.PlayerGameLog(player_id=pid, season='2026-27', headers=HEADERS, timeout=4)
-                df = gamelog.get_data_frames()[0]
-                if not df.empty and len(df) >= 3:
-                    df_l10 = df.head(10).copy()
-                    df_l10['PTS'] = pd.to_numeric(df_l10['PTS'])
-                    df_l10['FG3M'] = pd.to_numeric(df_l10['FG3M'])
-                    df_l10['FG3A'] = pd.to_numeric(df_l10.get('FG3A', 0))
-                    df_l10['MIN'] = pd.to_numeric(df_l10['MIN'])
-                    df_l10['REB'] = pd.to_numeric(df_l10['REB'])
-                    df_l10['AST'] = pd.to_numeric(df_l10['AST'])
+        if not l10_stats:
+            continue
 
-                    min_avg = round(float(df_l10['MIN'].mean()), 1)
-                    pts_raw = float(df_l10['PTS'].mean())
-                    fg3m_avg = round(float(df_l10['FG3M'].mean()), 1)
-                    fg3a_avg = round(float(df_l10['FG3A'].mean()), 1) if 'FG3A' in df_l10.columns else round(fg3m_avg * 2.5, 1)
-                    pra_raw = float((df_l10['PTS'] + df_l10['REB'] + df_l10['AST']).mean())
-                    std_pts = round(float(df_l10['PTS'].std()), 1) if len(df_l10) > 1 else 5.0
-            except Exception:
-                pass
+        min_avg = l10_stats['min']
+        pts_raw = l10_stats['pts']
+        fg3m_avg = l10_stats['3pt']
+        fg3a_avg = l10_stats['3pa']
+        pra_raw = l10_stats['pra']
+        std_pts = l10_stats['std']
 
-        # 2. Si la API de la NBA bloqueó la IP de GitHub, leemos el promedio en vivo del objeto atleta de ESPN
-        if pts_raw is None and item['espn_ppg'] > 0:
-            pts_raw = item['espn_ppg']
-            pra_raw = item['espn_ppg'] + item['espn_rpg'] + item['espn_apg']
-            min_avg = 30.0
-            fg3m_avg = round(pts_raw * 0.1, 1)
-            fg3a_avg = round(fg3m_avg * 2.5, 1)
-            std_pts = 5.5
-
-        # Filtramos suplentes con bajo protagonismo (puntos < 11.0)
-        if pts_raw is None or pts_raw < 11.0:
+        # Filtramos jugadores suplentes o con poco protagonismo (< 15 MIN o < 10 PTS)
+        if min_avg < 15.0 or pts_raw < 10.0:
             continue
 
         rival = mapa_enfrentamientos.get(equipo, "")
@@ -169,19 +188,19 @@ def actualizar_datos_nba():
         dataset.append({
             "Jugador": nombre,
             "Equipo": equipo,
-            "Minutos L10": min_avg if min_avg else 30.0,
+            "Minutos L10": min_avg,
             "PTS Base": pts_avg,
-            "3PT Base": fg3m_avg if fg3m_avg else 1.5,
-            "3PA (Intentos)": fg3a_avg if fg3a_avg else 4.0,
-            "Estabilidad": "⭐ ALTA" if (std_pts and std_pts <= 6.5) else "ESTÁNDAR",
+            "3PT Base": fg3m_avg,
+            "3PA (Intentos)": fg3a_avg,
+            "Estabilidad": "⭐ ALTA" if std_pts <= 6.5 else "ESTÁNDAR",
             "PRA Base": pra_avg,
-            "Varianza (std)": std_pts if std_pts else 5.5
+            "Varianza (std)": std_pts
         })
-        print(f"✅ Auto-detectado dinámicamente: {nombre} ({equipo}) vs {rival} -> {pts_avg} PTS")
+        print(f"✅ L10 Real: {nombre} ({equipo}) vs {rival} -> {pts_avg} PTS (L10 raw: {pts_raw})")
 
     with open("datos_nba_hoy.json", "w", encoding="utf-8") as f:
         json.dump(dataset, f, indent=4, ensure_ascii=False)
-    print(f"🎉 Proceso 100% dinámico finalizado. {len(dataset)} jugadores guardados.")
+    print(f"🎉 Proceso 100% dinámico finalizado. {len(dataset)} jugadores guardados con L10 real.")
 
 if __name__ == "__main__":
     actualizar_datos_nba()
