@@ -1,7 +1,6 @@
 import math
 import json
 import time
-import io
 import requests
 import datetime
 import pandas as pd
@@ -195,19 +194,17 @@ col_res1.metric("Cuota Combinada Real", f"@{cuota_total:.2f}")
 col_res2.metric("Probabilidad Real Acumulada", f"{prob_real*100:.1f}%")
 col_res3.metric("Ventaja Matemática REAL (+EV)", f"{ev_margin:+.1f}%", delta_color="normal" if ev_margin > 0 else "inverse")
 
-# --- BOTÓN DE DESCARGA EXCEL AL FINAL ---
+# --- BOTÓN DE DESCARGA CSV NATIVO AL FINAL ---
 st.markdown("---")
 st.subheader("📥 Exportar Datos de la Jornada")
-st.caption("Descarga toda la tabla procesada en formato Excel (.xlsx) para auditar o enviar las selecciones.")
+st.caption("Descarga toda la tabla procesada en archivo CSV compatible con Excel para auditar o enviar las selecciones.")
 
-buffer = io.BytesIO()
-with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-    df_mostrar.to_excel(writer, index=False, sheet_name=f"Quant_NBA_{fecha_str}")
+csv_datos = df_mostrar.to_csv(index=False).encode('utf-8')
 
 st.download_button(
-    label="🟢 Descargar Análisis Completo en Excel (.xlsx)",
-    data=buffer.getvalue(),
-    file_name=f"YZ_Quant_NBA_{fecha_str}.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    label="🟢 Descargar Archivo CSV para Excel",
+    data=csv_datos,
+    file_name=f"YZ_Quant_NBA_{fecha_str}.csv",
+    mime="text/csv",
     use_container_width=True
 )
