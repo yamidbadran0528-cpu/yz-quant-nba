@@ -114,6 +114,8 @@ for _, fila in df_raw.iterrows():
     procesados.append({
         'Jugador': j_nombre,
         'Equipo': fila['Equipo'],
+        'Rival (Hoy)': fila.get('Rival', 'N/A'),
+        'Factor Defensivo': f"{fila.get('Factor Defensivo', 1.0):.2f}x",
         'Minutos L10': fila['Minutos L10'],
         'PTS Proyectados': round(pts_proj, 1),
         f'Colchón PTS (>{linea_evaluada_pts})': round(colchon_pts, 1),
