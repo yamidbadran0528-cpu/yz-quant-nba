@@ -13,17 +13,16 @@ HEADERS = {
     'Referer': 'https://www.nba.com/',
 }
 
+# 1. Factores defensivos dinámicos (calculados en vivo según PPG permitidos por los 30 equipos)
 def obtener_factores_defensivos_dinamicos():
     url_standings = "https://site.api.espn.com/apis/v2/sports/basketball/nba/standings"
     factores_defensivos = {}
-    
     try:
         res = requests.get(url_standings, headers={'User-Agent': 'Mozilla/5.0'}, timeout=8)
         if res.status_code == 200:
             data = res.json()
             children = data.get('children', [])
-            pts_permitidos_por_equipo = {}
-            
+            pts_permitidos = {}
             for conf in children:
                 for item in conf.get('standings', {}).get('entries', []):
                     team_name = item.get('team', {}).get('displayName')
@@ -34,21 +33,17 @@ def obtener_factores_defensivos_dinamicos():
                             pts_against = float(s.get('value', 0))
                             break
                     if team_name and pts_against:
-                        pts_permitidos_por_equipo[team_name] = pts_against
-                        
-            if pts_permitidos_por_equipo:
-                promedio_liga = sum(pts_permitidos_por_equipo.values()) / len(pts_permitidos_por_equipo)
-                for t, opp_pts in pts_permitidos_por_equipo.items():
-                    # Factor = Puntos permitidos por el rival / Promedio global de la liga
-                    factor_raw = opp_pts / promedio_liga
-                    factores_defensivos[t] = round(max(0.90, min(1.10, factor_raw)), 3)
-                print(f"📊 Factores defensivos calculados dinámicamente para los {len(factores_defensivos)} equipos. (Promedio liga: {promedio_liga:.1f} PPG)")
+                        pts_permitidos[team_name] = pts_against
+            if pts_permitidos:
+                prom_liga = sum(pts_permitidos.values()) / len(pts_permitidos)
+                for t, opp in pts_permitidos.items():
+                    factores_defensivos[t] = round(max(0.90, min(1.10, opp / prom_liga)), 3)
     except Exception as e:
-        print(f"⚠️ No se pudieron descargar standings defensivos en vivo: {e}")
-        
+        print(f"Error consultando defensas en vivo: {e}")
     return factores_defensivos
 
-def obtener_equipos_y_plantillas_hoy():
+# 2. Extracción 100% DINÁMICA de los equipos que juegan HOY y sus nóminas oficiales desde ESPN
+def obtener_jugadores_y_enfrentamientos_hoy():
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     now_et = now_utc.astimezone(datetime.timezone(datetime.timedelta(hours=-5)))
     fecha_clean = now_et.strftime('%Y%m%d')
@@ -84,25 +79,23 @@ def obtener_equipos_y_plantillas_hoy():
                             athletes = r_ros.json().get('athletes', [])
                             for ath in athletes:
                                 j_nombre = ath.get('fullName') or ath.get('displayName')
-                                ath_id = ath.get('id')
                                 if j_nombre:
                                     jugadores_hoy.append({
                                         'nombre': j_nombre,
-                                        'equipo': team_name,
-                                        'espn_id': ath_id
+                                        'equipo': team_name
                                     })
     except Exception as e:
-        print(f"Error consultando APIs dinámicas de ESPN: {e}")
+        print(f"Error consultando ESPN: {e}")
         
     return jugadores_hoy, mapa_enfrentamientos
 
 def actualizar_datos_nba():
-    print("🚀 Consultando tabla defensiva global (30 equipos)...")
+    print("🚀 Consultando tabla defensiva global en vivo...")
     factores_defensivos = obtener_factores_defensivos_dinamicos()
     
-    print("🚀 Consultando partidos y nóminas oficiales de hoy...")
-    jugadores_hoy, mapa_enfrentamientos = obtener_equipos_y_plantillas_hoy()
-    print(f"🏀 Jugadores detectados en plantillas hoy: {len(jugadores_hoy)}")
+    print("🚀 Extrayendo automáticamente equipos y nóminas de HOY...")
+    jugadores_hoy, mapa_enfrentamientos = obtener_jugadores_y_enfrentamientos_hoy()
+    print(f"🏀 Jugadores detectados en nóminas activas de hoy: {len(jugadores_hoy)}")
     
     if not jugadores_hoy:
         print("⚠️ No hay partidos programados para la fecha actual.")
@@ -139,18 +132,21 @@ def actualizar_datos_nba():
 
                 min_avg = round(float(df_l10['MIN'].mean()), 1)
                 
-                # Descartamos suplentes con menos de 15 minutos de rotación
+                # Excluimos jugadores con menos de 15 MIN de promedio (suplentes)
                 if min_avg < 15.0:
                     continue
 
-                # Determinar el rival de hoy y su factor defensivo real
+                pts_raw = float(df_l10['PTS'].mean())
+                
+                # Excluimos jugadores con menos de 10 PTS de promedio
+                if pts_raw < 10.0:
+                    continue
+
                 rival = mapa_enfrentamientos.get(equipo, "")
                 factor_defensa = factores_defensivos.get(rival, 1.00)
 
-                # Aplicar el factor defensivo a puntos y combos
-                pts_avg = round(float(df_l10['PTS'].mean()) * factor_defensa, 1)
+                pts_avg = round(pts_raw * factor_defensa, 1)
                 pra_avg = round(float((df_l10['PTS'] + df_l10['REB'] + df_l10['AST']).mean()) * factor_defensa, 1)
-                
                 fg3m_avg = round(float(df_l10['FG3M'].mean()), 1)
                 fg3a_avg = round(float(df_l10['FG3A'].mean()), 1) if 'FG3A' in df_l10.columns else round(fg3m_avg * 2.5, 1)
                 std_pts = round(float(df_l10['PTS'].std()), 1) if len(df_l10) > 1 else 5.0
@@ -166,13 +162,13 @@ def actualizar_datos_nba():
                     "PRA Base": pra_avg,
                     "Varianza (std)": std_pts
                 })
-                print(f"✅ {nombre} ({equipo}) vs {rival if rival else 'N/A'} -> {pts_avg} PTS (Factor Def: x{factor_defensa})")
-        except Exception as e:
-            print(f"⚠️ Omisión/Error en {nombre}: {e}")
+                print(f"✅ Auto-detectado: {nombre} ({equipo}) vs {rival} -> {pts_avg} PTS")
+        except Exception:
+            continue
 
     with open("datos_nba_hoy.json", "w", encoding="utf-8") as f:
         json.dump(dataset, f, indent=4, ensure_ascii=False)
-    print(f"🎉 Proceso 100% dinámico finalizado. {len(dataset)} jugadores procesados.")
+    print(f"🎉 Proceso 100% dinámico finalizado. {len(dataset)} jugadores guardados.")
 
 if __name__ == "__main__":
     actualizar_datos_nba()
