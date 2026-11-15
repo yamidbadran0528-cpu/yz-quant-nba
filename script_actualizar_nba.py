@@ -37,10 +37,10 @@ def obtener_datos_jornada_hoy():
     now_et = now_utc.astimezone(datetime.timezone(datetime.timedelta(hours=-5)))
     fecha_clean = now_et.strftime('%Y%m%d')
     url_scoreboard = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates={fecha_clean}"
-    
+
     jugadores_hoy = []
     mapa_enfrentamientos = {}
-    
+
     try:
         res = requests.get(url_scoreboard, headers={'User-Agent': 'Mozilla/5.0'}, timeout=8)
         if res.status_code == 200:
@@ -59,7 +59,7 @@ def obtener_datos_jornada_hoy():
                     team_info = c.get('team', {})
                     team_id = team_info.get('id')
                     team_name = team_info.get('displayName', 'NBA Team')
-                    
+
                     if team_id:
                         url_roster = f"https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/{team_id}/roster"
                         r_ros = requests.get(url_roster, headers={'User-Agent': 'Mozilla/5.0'}, timeout=8)
@@ -68,15 +68,24 @@ def obtener_datos_jornada_hoy():
                             for ath in athletes:
                                 j_nombre = ath.get('fullName') or ath.get('displayName')
                                 ath_id = ath.get('id')
+                                injuries = ath.get('injuries', [])
+                                estado_lesion = "ACTIVO"
+                                if injuries and isinstance(injuries, list):
+                                    status_raw = str(injuries[0].get('status', '')).strip().upper()
+                                    if status_raw in ("OUT", "SUSPENSION", "INACTIVE"):
+                                        estado_lesion = "OUT"
+                                    elif status_raw in ("DAY-TO-DAY", "QUESTIONABLE", "DOUBTFUL"):
+                                        estado_lesion = "GTD"
                                 if j_nombre and ath_id:
                                     jugadores_hoy.append({
                                         'nombre': j_nombre,
                                         'equipo': team_name,
-                                        'ath_id': ath_id
+                                        'ath_id': ath_id,
+                                        'estado_lesion': estado_lesion
                                     })
     except Exception as e:
         print(f"Error consultando cartelera ESPN: {e}")
-        
+
     return jugadores_hoy, mapa_enfrentamientos
 
 def obtener_l10_desde_espn(ath_id):
@@ -121,7 +130,7 @@ def obtener_l10_desde_espn(ath_id):
                 fg3a_avg = round(sum(g['3PA'] for g in l10) / len(l10), 1)
                 pra_avg = round(sum(g['PRA'] for g in l10) / len(l10), 1)
                 pts_list = [g['PTS'] for g in l10]
-                std_pts = round(float(np.std(pts_list)), 1) if len(pts_list) > 1 else 5.5
+                std_pts = round(float(np.std(pts_list, ddof=1)), 1) if len(pts_list) > 1 else 5.5
                 return {
                     'min': min_avg,
                     'pts': pts_avg,
@@ -137,62 +146,92 @@ def obtener_l10_desde_espn(ath_id):
 def actualizar_datos_nba():
     print("🚀 Consultando tabla defensiva global en vivo...")
     factores_defensivos = obtener_factores_defensivos_dinamicos()
-    
+
     print("🚀 Extrayendo nóminas activas de HOY...")
     jugadores_hoy, mapa_enfrentamientos = obtener_datos_jornada_hoy()
     print(f"🏀 Jugadores detectados en plantillas de hoy: {len(jugadores_hoy)}")
-    
+
     if not jugadores_hoy:
         print("⚠️ No hay partidos programados para hoy.")
         with open("datos_nba_hoy.json", "w", encoding="utf-8") as f:
             json.dump([], f)
         return
 
-    dataset = []
-    
+    registros_crudos = []
+    equipos_con_baja_pesada = set()
+
     for item in jugadores_hoy:
         nombre = item['nombre']
         equipo = item['equipo']
         ath_id = item['ath_id']
-        
+        estado_lesion = item['estado_lesion']
+
         l10_stats = obtener_l10_desde_espn(ath_id)
         if not l10_stats:
             continue
 
         min_avg = l10_stats['min']
         pts_raw = l10_stats['pts']
-        fg3m_avg = l10_stats['3pt']
-        fg3a_avg = l10_stats['3pa']
-        pra_raw = l10_stats['pra']
-        std_pts = l10_stats['std']
 
         if min_avg < 15.0 or pts_raw < 10.0:
+            continue
+
+        # Activar redistribución solo si la baja confirmada (OUT) es un titular de peso
+        if estado_lesion == "OUT" and min_avg >= 26.0 and pts_raw >= 16.0:
+            equipos_con_baja_pesada.add(equipo)
+            print(f"🚑 Baja de alto impacto detectada: {nombre} ({equipo}) - {pts_raw} PTS / {min_avg} MIN")
+
+        registros_crudos.append({
+            'nombre': nombre,
+            'equipo': equipo,
+            'estado_lesion': estado_lesion,
+            'stats': l10_stats
+        })
+
+    dataset = []
+    for reg in registros_crudos:
+        nombre = reg['nombre']
+        equipo = reg['equipo']
+        estado_lesion = reg['estado_lesion']
+        s = reg['stats']
+
+        # Excluir automáticamente jugadores ya confirmados OUT en ESPN
+        if estado_lesion == "OUT":
             continue
 
         rival = mapa_enfrentamientos.get(equipo, "N/A")
         factor_defensa = factores_defensivos.get(rival, 1.00)
 
-        pts_avg = round(pts_raw * factor_defensa, 1)
-        pra_avg = round(pra_raw * factor_defensa, 1)
+        # Boost realista (+8% PTS/PRA, +5% 3PT) solo si falta una figura titular del equipo
+        factor_usage = 1.08 if equipo in equipos_con_baja_pesada else 1.00
+
+        pts_avg = round(s['pts'] * factor_defensa * factor_usage, 1)
+        pra_avg = round(s['pra'] * factor_defensa * factor_usage, 1)
+        fg3m_avg = round(s['3pt'] * (1.05 if factor_usage > 1.0 else 1.0), 1)
+        std_pts = s['std']
 
         dataset.append({
             "Jugador": nombre,
             "Equipo": equipo,
             "Rival": f"vs {rival}" if rival != "N/A" else "N/A",
             "Factor Defensivo": round(factor_defensa, 2),
-            "Minutos L10": min_avg,
+            "Minutos L10": s['min'],
             "PTS Base": pts_avg,
             "3PT Base": fg3m_avg,
-            "3PA (Intentos)": fg3a_avg,
+            "3PA (Intentos)": s['3pa'],
             "Estabilidad": "⭐ ALTA" if std_pts <= 6.5 else "ESTÁNDAR",
             "PRA Base": pra_avg,
-            "Varianza (std)": std_pts
+            "Varianza (std)": std_pts,
+            "Estado ESPN": estado_lesion,
+            "Usage Auto": "🚀 USAGE (+8%)" if factor_usage > 1.0 else "🟢 NORMAL"
         })
-        print(f"✅ L10 Real: {nombre} ({equipo}) vs {rival} -> {pts_avg} PTS (Def Factor: {factor_defensa}x)")
+        print(f"✅ L10 Real: {nombre} ({equipo}) [{estado_lesion}] vs {rival} -> {pts_avg} PTS (Def: {factor_defensa}x | Usage: {factor_usage}x)")
+
+    dataset.sort(key=lambda x: x["PTS Base"], reverse=True)
 
     with open("datos_nba_hoy.json", "w", encoding="utf-8") as f:
         json.dump(dataset, f, indent=4, ensure_ascii=False)
-    print(f"🎉 Proceso 100% dinámico finalizado. {len(dataset)} jugadores guardados con L10 real y factores defensivos.")
+    print(f"🎉 Proceso 100% dinámico finalizado. {len(dataset)} jugadores activos guardados.")
 
 if __name__ == "__main__":
     actualizar_datos_nba()
