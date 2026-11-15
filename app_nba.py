@@ -63,7 +63,7 @@ def cargar_datos_automatizados():
                 return pd.DataFrame(datos), "🟢 Sincronizado en vivo desde GitHub"
     except Exception:
         pass
-        
+
     try:
         with open("datos_nba_hoy.json", "r", encoding="utf-8") as f:
             datos = json.load(f)
@@ -97,6 +97,7 @@ linea_evaluada_pra = st.sidebar.selectbox(
 
 min_minutos = st.sidebar.slider("Minutos Mínimos Promedio", 15, 36, 20)
 solo_alta_estabilidad = st.sidebar.checkbox("Mostrar solo estabilidad ⭐ ALTA", False)
+ocultar_gtd = st.sidebar.checkbox("Ocultar jugadores en duda (🟡 GTD)", False)
 filtro_volumen_3pt = st.sidebar.checkbox("Filtrar tiradores con al menos 5.5 intentos (3PA)", False)
 
 # --- CABECERA PRINCIPAL ---
@@ -123,29 +124,46 @@ if df_raw.empty:
     st.stop()
 
 st.sidebar.markdown("---")
-st.sidebar.header("🚑 Reporte de Bajas / Lesiones")
+st.sidebar.header("🚑 Reporte de Bajas de Última Hora")
 bajas_confirmadas = st.sidebar.multiselect(
-    "Selecciona los jugadores descartados (OUT):",
+    "Selecciona bajas adicionales (OUT):",
     options=df_raw['Jugador'].tolist() if 'Jugador' in df_raw.columns else []
 )
 
-equipos_con_baja = set()
+equipos_con_baja_manual = set()
 for b in bajas_confirmadas:
     eq = df_raw[df_raw['Jugador'] == b]['Equipo'].values
     if len(eq) > 0:
-        equipos_con_baja.add(eq[0])
+        equipos_con_baja_manual.add(eq[0])
 
 procesados = []
 for _, fila in df_raw.iterrows():
     j_nombre = fila['Jugador']
     if j_nombre in bajas_confirmadas:
         continue
-        
-    f_usage = 1.15 if fila['Equipo'] in equipos_con_baja and fila['Equipo'] != "NBA Team" else 1.00
-    
-    pts_proj = fila['PTS Base'] * f_usage
-    triples_proj = fila['3PT Base'] * f_usage
-    pra_proj = fila['PRA Base'] * f_usage
+
+    estado_espn_raw = str(fila.get('Estado ESPN', 'ACTIVO')).upper()
+    estado_espn_label = "🟡 GTD (En Duda)" if estado_espn_raw == "GTD" else "🟢 ACTIVO"
+
+    usage_auto_raw = str(fila.get('Usage Auto', '🟢 NORMAL'))
+    ya_tiene_boost_auto = "USAGE" in usage_auto_raw
+
+    if ya_tiene_boost_auto:
+        f_usage_pts = 1.00
+        f_usage_3pt = 1.00
+        descanso_str = usage_auto_raw
+    elif fila['Equipo'] in equipos_con_baja_manual and fila['Equipo'] != "NBA Team":
+        f_usage_pts = 1.08
+        f_usage_3pt = 1.05
+        descanso_str = "🚀 USAGE MANUAL (+8%)"
+    else:
+        f_usage_pts = 1.00
+        f_usage_3pt = 1.00
+        descanso_str = "🟢 NORMAL"
+
+    pts_proj = fila['PTS Base'] * f_usage_pts
+    triples_proj = fila['3PT Base'] * f_usage_3pt
+    pra_proj = fila['PRA Base'] * f_usage_pts
     std_val = float(fila['Varianza (std)'])
 
     prob_pts = calcular_normal_over(pts_proj, std_val, linea_evaluada_pts)
@@ -153,12 +171,12 @@ for _, fila in df_raw.iterrows():
     prob_pra = calcular_normal_over(pra_proj, std_val, linea_evaluada_pra)
 
     colchon_pts = pts_proj - linea_evaluada_pts
-    descanso_str = "🚀 USAGE (+15%)" if f_usage > 1.0 else "🟢 NORMAL"
 
     procesados.append({
         'Jugador': j_nombre,
         'Equipo': fila['Equipo'],
         'Rival (Hoy)': fila.get('Rival', 'N/A'),
+        'Estado ESPN': estado_espn_label,
         'Factor Defensivo': f"{fila.get('Factor Defensivo', 1.0):.2f}x",
         'Minutos L10': fila['Minutos L10'],
         'PTS Proyectados': round(pts_proj, 1),
@@ -188,6 +206,8 @@ st.markdown("---")
 df_filtrado = df_data[df_data['Minutos L10'] >= min_minutos]
 if solo_alta_estabilidad:
     df_filtrado = df_filtrado[df_filtrado['Estabilidad'] == "⭐ ALTA"]
+if ocultar_gtd:
+    df_filtrado = df_filtrado[df_filtrado['Estado ESPN'] == "🟢 ACTIVO"]
 if filtro_volumen_3pt:
     df_filtrado = df_filtrado[df_filtrado['3PA (Intentos)'] >= 5.5]
 
