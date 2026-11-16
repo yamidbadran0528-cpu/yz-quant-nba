@@ -506,7 +506,7 @@
         "Estabilidad": "⭐ ALTA",
         "PRA Base": 25.9,
         "Varianza (std)": 6.0,
-        "Estado ESPN": "ACTIVO",
+        "Estado ESPN": "GTD",
         "Usage Auto": "🟢 NORMAL"
     },
     {
@@ -585,17 +585,17 @@
         "Usage Auto": "🟢 NORMAL"
     },
     {
-        "Jugador": "LeBron James",
-        "Equipo": "Philadelphia 76ers",
-        "Rival": "vs Brooklyn Nets",
-        "Factor Defensivo": 1.02,
-        "Minutos L10": 32.4,
-        "PTS Base": 15.5,
-        "3PT Base": 0.9,
-        "3PA (Intentos)": 3.7,
+        "Jugador": "Fred VanVleet",
+        "Equipo": "Houston Rockets",
+        "Rival": "vs Miami Heat",
+        "Factor Defensivo": 1.05,
+        "Minutos L10": 30.5,
+        "PTS Base": 15.6,
+        "3PT Base": 3.0,
+        "3PA (Intentos)": 7.5,
         "Estabilidad": "⭐ ALTA",
-        "PRA Base": 29.8,
-        "Varianza (std)": 4.2,
+        "PRA Base": 23.8,
+        "Varianza (std)": 5.4,
         "Estado ESPN": "ACTIVO",
         "Usage Auto": "🟢 NORMAL"
     },
@@ -686,7 +686,7 @@
         "Estabilidad": "⭐ ALTA",
         "PRA Base": 25.0,
         "Varianza (std)": 6.1,
-        "Estado ESPN": "GTD",
+        "Estado ESPN": "ACTIVO",
         "Usage Auto": "🚀 USAGE (+8%)"
     },
     {
@@ -881,7 +881,7 @@
         "Estabilidad": "⭐ ALTA",
         "PRA Base": 21.7,
         "Varianza (std)": 5.7,
-        "Estado ESPN": "GTD",
+        "Estado ESPN": "ACTIVO",
         "Usage Auto": "🚀 USAGE (+8%)"
     },
     {
@@ -915,21 +915,6 @@
         "Usage Auto": "🟢 NORMAL"
     },
     {
-        "Jugador": "Isaiah Stewart",
-        "Equipo": "Memphis Grizzlies",
-        "Rival": "vs Washington Wizards",
-        "Factor Defensivo": 1.04,
-        "Minutos L10": 18.1,
-        "PTS Base": 12.2,
-        "3PT Base": 0.9,
-        "3PA (Intentos)": 2.2,
-        "Estabilidad": "ESTÁNDAR",
-        "PRA Base": 16.9,
-        "Varianza (std)": 6.8,
-        "Estado ESPN": "GTD",
-        "Usage Auto": "🚀 USAGE (+8%)"
-    },
-    {
         "Jugador": "Payton Pritchard",
         "Equipo": "Boston Celtics",
         "Rival": "vs Orlando Magic",
@@ -943,21 +928,6 @@
         "Varianza (std)": 7.6,
         "Estado ESPN": "ACTIVO",
         "Usage Auto": "🟢 NORMAL"
-    },
-    {
-        "Jugador": "Jaylon Tyson",
-        "Equipo": "Cleveland Cavaliers",
-        "Rival": "vs Chicago Bulls",
-        "Factor Defensivo": 1.1,
-        "Minutos L10": 23.7,
-        "PTS Base": 12.0,
-        "3PT Base": 1.8,
-        "3PA (Intentos)": 4.9,
-        "Estabilidad": "⭐ ALTA",
-        "PRA Base": 18.2,
-        "Varianza (std)": 5.7,
-        "Estado ESPN": "GTD",
-        "Usage Auto": "🚀 USAGE (+8%)"
     },
     {
         "Jugador": "Cam Spencer",
@@ -1002,21 +972,6 @@
         "PRA Base": 17.3,
         "Varianza (std)": 5.7,
         "Estado ESPN": "ACTIVO",
-        "Usage Auto": "🟢 NORMAL"
-    },
-    {
-        "Jugador": "Pelle Larsson",
-        "Equipo": "Miami Heat",
-        "Rival": "vs Houston Rockets",
-        "Factor Defensivo": 0.95,
-        "Minutos L10": 30.1,
-        "PTS Base": 11.7,
-        "3PT Base": 1.5,
-        "3PA (Intentos)": 3.1,
-        "Estabilidad": "⭐ ALTA",
-        "PRA Base": 18.4,
-        "Varianza (std)": 3.9,
-        "Estado ESPN": "GTD",
         "Usage Auto": "🟢 NORMAL"
     },
     {
