@@ -1,5 +1,4 @@
 import glob
-import json
 import math
 import os
 from datetime import datetime
@@ -10,10 +9,10 @@ import pandas as pd
 import streamlit as st
 
 # ==============================================================================
-# CONFIGURACIÓN DE PÁGINA - YZ QUANT NBA v2.3 (CARGA AUTOMÁTICA + INTERFAZ JUGADORES)
+# CONFIGURACIÓN DE PÁGINA - YZ QUANT NBA (INTERFAZ DE JUGADORES)
 # ==============================================================================
 st.set_page_config(
-    page_title="YZ Quant NBA v2.3 | Motor Cuantitativo & Kelly",
+    page_title="YZ Quant NBA | Proyecciones de Jugadores",
     page_icon="🏀",
     layout="wide",
 )
@@ -21,118 +20,45 @@ st.set_page_config(
 ZONA_COL = ZoneInfo("America/Bogota")
 HOY_STR = datetime.now(ZONA_COL).strftime("%Y-%m-%d")
 
-STATE_FILE = "banca_state.json"
-BITACORA_FILE = "bitacora_yz_quant.csv"
-SALDO_BASE_INICIAL = 22809  # Saldo real verificado al 2026-11-18
-
 
 # ==============================================================================
-# DETECCIÓN AUTOMÁTICA DEL CSV EN EL REPOSITORIO
+# CARGA AUTOMÁTICA DEL CSV DEL REPOSITORIO (CUALQUIER NOMBRE DE ARCHIVO)
 # ==============================================================================
-def buscar_csv_automatico() -> tuple[pd.DataFrame | None, str]:
-    """
-    Busca automáticamente YZ_Quant_NBA_HOY.csv en el repositorio; si aún no corre
-    el workflow de hoy, carga el YZ_Quant_NBA_*.csv más reciente disponible.
-    """
-    archivo_hoy = f"YZ_Quant_NBA_{HOY_STR}.csv"
-    if os.path.exists(archivo_hoy):
-        return pd.read_csv(archivo_hoy), archivo_hoy
+def cargar_csv_repositorio() -> tuple[pd.DataFrame | None, str]:
+    """Busca automáticamente el CSV generado por el workflow en la carpeta del repo."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    carpetas = list(dict.fromkeys([base_dir, "."]))
 
-    candidatos = sorted(glob.glob("YZ_Quant_NBA_*.csv"), reverse=True)
-    if candidatos:
-        return pd.read_csv(candidatos[0]), candidatos[0]
+    archivos_csv = []
+    for carpeta in carpetas:
+        for ruta in glob.glob(os.path.join(carpeta, "*.csv")):
+            nombre = os.path.basename(ruta).lower()
+            if "bitacora" in nombre:
+                continue
+            archivos_csv.append(ruta)
 
-    return None, ""
+    if not archivos_csv:
+        return None, ""
 
-
-# ==============================================================================
-# GESTIÓN PERSISTENTE DE BANCA Y BITÁCORA
-# ==============================================================================
-def cargar_estado_banca() -> dict:
-    estado_default = {
-        "saldo": SALDO_BASE_INICIAL,
-        "piso_seguridad": 45000,
-        "pct_riesgo": 45,
-        "ultima_actualizacion": HOY_STR,
-    }
-    if os.path.exists(STATE_FILE):
+    # Priorizar archivos de proyecciones / nba / quant y elegir el más reciente
+    def prioridad(ruta: str) -> tuple[int, float]:
+        nombre = os.path.basename(ruta).lower()
+        score = 0
+        if any(k in nombre for k in ["proyeccion", "nba", "quant", "datos", "stats"]):
+            score = 1
         try:
-            with open(STATE_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                estado_default.update(data)
-        except Exception:
-            pass
+            mtime = os.path.getmtime(ruta)
+        except OSError:
+            mtime = 0.0
+        return (score, mtime)
 
-    if "saldo" in st.query_params:
-        try:
-            estado_default["saldo"] = int(float(st.query_params["saldo"]))
-        except ValueError:
-            pass
-
-    return estado_default
-
-
-def guardar_estado_banca(saldo: int, piso: int, pct_riesgo: int) -> None:
-    payload = {
-        "saldo": int(saldo),
-        "piso_seguridad": int(piso),
-        "pct_riesgo": int(pct_riesgo),
-        "ultima_actualizacion": HOY_STR,
-    }
-    try:
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
-    st.query_params["saldo"] = str(int(saldo))
-
-
-def cargar_bitacora() -> pd.DataFrame:
-    cols = ["Fecha", "Boleto", "Selecciones", "Cuota", "Prob_Modelo_%", "Apuesta_COP", "Estado", "Retorno_COP", "Saldo_Post_COP"]
-    if os.path.exists(BITACORA_FILE):
-        try:
-            df_b = pd.read_csv(BITACORA_FILE)
-            for c in cols:
-                if c not in df_b.columns:
-                    df_b[c] = ""
-            return df_b[cols]
-        except Exception:
-            pass
-    return pd.DataFrame([
-        {
-            "Fecha": "2026-11-17",
-            "Boleto": "Combinada A",
-            "Selecciones": "Luka Doncic 32+ PTS | Jalen Brunson 22+ PTS | Deni Avdija 18+ PTS (Void)",
-            "Cuota": 2.02,
-            "Prob_Modelo_%": 70.0,
-            "Apuesta_COP": 7000,
-            "Estado": "GANADA",
-            "Retorno_COP": 14140,
-            "Saldo_Post_COP": 14140,
-        },
-        {
-            "Fecha": "2026-11-17",
-            "Boleto": "Combinada B",
-            "Selecciones": "Victor Wembanyama 35+ PRA | Karl-Anthony Towns 35+ PRA | Darryn Peterson 2+ 3PT",
-            "Cuota": 2.39,
-            "Prob_Modelo_%": 52.5,
-            "Apuesta_COP": 3643,
-            "Estado": "GANADA",
-            "Retorno_COP": 8707,
-            "Saldo_Post_COP": 22809,
-        },
-    ])
-
-
-def guardar_bitacora(df_b: pd.DataFrame) -> None:
-    try:
-        df_b.to_csv(BITACORA_FILE, index=False, encoding="utf-8-sig")
-    except Exception:
-        pass
+    archivos_csv.sort(key=prioridad, reverse=True)
+    elegido = archivos_csv[0]
+    return pd.read_csv(elegido), os.path.basename(elegido)
 
 
 # ==============================================================================
-# FUNCIONES ESTADÍSTICAS EXACTAS (100% STDLIB MATH, CERO SCIPY)
+# FUNCIONES ESTADÍSTICAS NATIVAS (CERO DEPENDENCIAS EXTERNAS)
 # ==============================================================================
 def prob_normal_over(mu: float, std: float, linea_entera: int) -> float:
     std_segura = max(float(std), 2.5)
@@ -153,304 +79,184 @@ def prob_poisson_over(lam: float, k_min: int) -> float:
     return float(max(0.0, min(1.0, 1.0 - cdf)))
 
 
-def calcular_kelly_fraccion(prob: float, cuota: float) -> float:
-    if cuota <= 1.0 or prob <= 0.0:
-        return 0.0
-    b = cuota - 1.0
-    q = 1.0 - prob
-    f = (prob * b - q) / b
-    return max(0.0, float(f))
-
-
-def evaluar_riesgo_blowout(factor_def_rival: str, pts_proy: float) -> str:
-    try:
-        f_val = float(str(factor_def_rival).replace("x", "").strip())
-    except ValueError:
-        f_val = 1.0
-    if f_val >= 1.05 and pts_proy >= 28.0:
-        return "⚠️ RIESGO BLOWOUT"
-    return "✅ RITMO NORMAL"
+def detectar_columna(df: pd.DataFrame, candidatas: list[str], default: str | None = None) -> str | None:
+    cols_lower = {c.lower(): c for c in df.columns}
+    for cand in candidatas:
+        if cand in df.columns:
+            return cand
+        if cand.lower() in cols_lower:
+            return cols_lower[cand.lower()]
+    return default
 
 
 # ==============================================================================
-# INICIALIZACIÓN DE ESTADO EN SESIÓN
+# INTERFAZ PRINCIPAL DE JUGADORES
 # ==============================================================================
-estado_guardado = cargar_estado_banca()
-if "saldo_banca" not in st.session_state:
-    st.session_state["saldo_banca"] = int(estado_guardado["saldo"])
-if "piso_banca" not in st.session_state:
-    st.session_state["piso_banca"] = int(estado_guardado["piso_seguridad"])
-if "pct_riesgo" not in st.session_state:
-    st.session_state["pct_riesgo"] = int(estado_guardado["pct_riesgo"])
+st.title("🏀 YZ Quant NBA — Proyecciones & Análisis de Jugadores")
 
-st.title("🏀 YZ Quant NBA v2.3 — Proyecciones, Parlay Kelly & Banca")
+df, nombre_archivo = cargar_csv_repositorio()
 
-# ==============================================================================
-# BARRA LATERAL: BANCA AUTOMÁTICA + CARGA OPCIONAL DE CSV
-# ==============================================================================
 with st.sidebar:
-    st.header("💰 Banca Automática (Regla 50/50)")
-    banca_actual = int(st.session_state["saldo_banca"])
-    st.metric("Saldo Guardado en Rushbet", f"${banca_actual:,} COP")
+    st.header("🎛️ Filtros de Cartelera")
+    archivo_subido = st.file_uploader("Cargar CSV alternativo (opcional)", type=["csv"])
 
-    piso_seguridad = int(st.session_state["piso_banca"])
-    pct_riesgo_diario = int(st.session_state["pct_riesgo"])
-
-    stake_total = int(round(banca_actual * (pct_riesgo_diario / 100.0)))
-    stake_a = int(round(stake_total * 0.65))
-    stake_b = stake_total - stake_a
-    reserva = banca_actual - stake_total
-
-    st.metric(f"Apuesta Hoy ({pct_riesgo_diario}% Kelly)", f"${stake_total:,} COP", f"Reserva blindada: ${reserva:,} COP")
-    col_s1, col_s2 = st.columns(2)
-    col_s1.metric("Comb. A (65%)", f"${stake_a:,}")
-    col_s2.metric("Comb. B (35%)", f"${stake_b:,}")
-
-    if banca_actual > piso_seguridad:
-        st.success(f"🟢 Modo Cosecha 50/50 ACTIVO (>${piso_seguridad:,}).")
-    else:
-        faltante = piso_seguridad - banca_actual
-        st.info(f"🚀 Modo Despegue (100% reinversión). Faltan ${faltante:,} COP para piso.")
-
-    with st.expander("⚙️ Ajustar saldo o parámetros", expanded=False):
-        nuevo_saldo_manual = st.number_input("Corregir saldo (COP)", min_value=1000, max_value=10000000, value=banca_actual, step=100)
-        nuevo_piso = st.number_input("Piso colchón (COP)", min_value=10000, max_value=500000, value=piso_seguridad, step=5000)
-        nuevo_pct = st.slider("% Riesgo diario", min_value=20, max_value=100, value=pct_riesgo_diario, step=5)
-        if st.button("💾 Guardar", use_container_width=True):
-            st.session_state["saldo_banca"] = int(nuevo_saldo_manual)
-            st.session_state["piso_banca"] = int(nuevo_piso)
-            st.session_state["pct_riesgo"] = int(nuevo_pct)
-            guardar_estado_banca(nuevo_saldo_manual, nuevo_piso, nuevo_pct)
-            st.rerun()
-
-    st.divider()
-    archivo_manual = st.file_uploader("📂 Cargar otro CSV manualmente (opcional)", type=["csv"])
-
-# Carga automática del CSV desde el repo (sin bloquear la interfaz)
-if archivo_manual is not None:
-    df = pd.read_csv(archivo_manual)
-    nombre_fuente = archivo_manual.name
-else:
-    df, nombre_fuente = buscar_csv_automatico()
+if archivo_subido is not None:
+    df = pd.read_csv(archivo_subido)
+    nombre_archivo = archivo_subido.name
 
 if df is None or df.empty:
-    st.error("No se encontró ningún archivo `YZ_Quant_NBA_*.csv` en el repositorio todavía. Ejecuta `script_actualizar_nba.py` o sube un CSV en la barra lateral.")
+    st.warning("No se detectó ningún archivo `.csv` en la carpeta del repositorio. Verifica que el workflow haya guardado el CSV en la raíz del repo.")
     st.stop()
 
-st.caption(f"Fecha operativa: **{HOY_STR}** (Bogotá) | Archivo activo cargado automáticamente: **`{nombre_fuente}`** ({len(df)} jugadores)")
+# Detección flexible de columnas para compatibilidad total con cualquier versión del script
+col_jug = detectar_columna(df, ["Jugador", "Player", "Nombre"], df.columns[0])
+col_eq = detectar_columna(df, ["Equipo", "Team"])
+col_rival = detectar_columna(df, ["Rival (Hoy)", "Rival", "Opponent", "Matchup"])
+col_estado = detectar_columna(df, ["Estado ESPN", "Estado", "Status"])
+col_carga = detectar_columna(df, ["Estado Carga", "Contexto", "Uso"])
+col_pts = detectar_columna(df, ["PTS Proyectados", "PTS", "Puntos"])
+col_pra = detectar_columna(df, ["PRA Promedios", "PRA", "PRA Proyectados"])
+col_3pt = detectar_columna(df, ["Triples Prom", "3PT Proyectados", "3PT", "Triples"])
+col_std = detectar_columna(df, ["Varianza (std)", "STD", "Desviacion"])
+col_estab = detectar_columna(df, ["Estabilidad", "Consistencia"])
+col_def = detectar_columna(df, ["Factor Defensivo", "Defensa Rival", "Defensa"])
 
-# Compatibilidad de nombres de columnas entre versiones del CSV
-col_rival = "Rival (Hoy)" if "Rival (Hoy)" in df.columns else "Rival"
-col_estado = "Estado ESPN" if "Estado ESPN" in df.columns else "Estado"
-col_carga = "Estado Carga" if "Estado Carga" in df.columns else "Contexto"
-col_def = "Factor Defensivo" if "Factor Defensivo" in df.columns else "Defensa Rival"
-col_min = "Minutos L10" if "Minutos L10" in df.columns else "MIN Prom"
-col_3pt = "Triples Prom" if "Triples Prom" in df.columns else "3PT Proyectados"
+st.caption(f"Cartelera activa: **`{nombre_archivo}`** | **{len(df)}** jugadores cargados | Fecha: **{HOY_STR}**")
 
-# Calcular probabilidades base si el CSV viene de la versión compacta
-if "Prob >19.5 PTS (%)" not in df.columns:
+# Calcular probabilidades si no vienen ya en el CSV
+if col_pts and col_std and "Prob >19.5 PTS (%)" not in df.columns:
     df["Prob >19.5 PTS (%)"] = df.apply(
-        lambda r: round(prob_normal_over(r["PTS Proyectados"], r["Varianza (std)"], 20) * 100, 1), axis=1
+        lambda r: round(prob_normal_over(r[col_pts], r[col_std], 20) * 100, 1), axis=1
     )
-if "Prob >1.5 Triples (%)" not in df.columns:
+if col_pra and col_std and "Prob >34.5 PRA (%)" not in df.columns:
+    df["Prob >34.5 PRA (%)"] = df.apply(
+        lambda r: round(prob_normal_over(r[col_pra], max(float(r[col_std]) * 1.12, 3.5), 35) * 100, 1), axis=1
+    )
+if col_3pt and "Prob >1.5 Triples (%)" not in df.columns:
     df["Prob >1.5 Triples (%)"] = df.apply(
         lambda r: round(prob_poisson_over(r[col_3pt], 2) * 100, 1), axis=1
     )
-if "Prob >34.5 PRA (%)" not in df.columns:
-    df["Prob >34.5 PRA (%)"] = df.apply(
-        lambda r: round(prob_normal_over(r["PRA Promedios"], max(float(r["Varianza (std)"]) * 1.12, 3.5), 35) * 100, 1), axis=1
-    )
+
+# Filtros en barra lateral
+with st.sidebar:
+    busqueda_jug = st.text_input("🔍 Buscar jugador", placeholder="Ej. Doncic, Brunson, Tatum...")
+
+    if col_eq:
+        equipos = ["Todos"] + sorted(df[col_eq].dropna().astype(str).unique().tolist())
+        eq_sel = st.selectbox("Equipo", equipos)
+    else:
+        eq_sel = "Todos"
+
+    solo_activos = st.checkbox("Ocultar jugadores GTD / Lesionados", value=True) if col_estado else False
+    quitar_boost = st.checkbox("Simular sin bono +8% (Usage Boost)", value=False) if col_carga else False
+
+    if col_estab:
+        estabs = df[col_estab].dropna().astype(str).unique().tolist()
+        estab_sel = st.multiselect("Estabilidad", options=estabs, default=estabs)
+    else:
+        estab_sel = []
+
+df_view = df.copy()
+
+if busqueda_jug.strip():
+    df_view = df_view[df_view[col_jug].astype(str).str.contains(busqueda_jug.strip(), case=False, na=False)]
+if col_eq and eq_sel != "Todos":
+    df_view = df_view[df_view[col_eq].astype(str) == eq_sel]
+if col_estado and solo_activos:
+    df_view = df_view[~df_view[col_estado].astype(str).str.contains("GTD|OUT", case=False, na=False)]
+if col_estab and estab_sel:
+    df_view = df_view[df_view[col_estab].astype(str).isin(estab_sel)]
+
+if quitar_boost and col_carga:
+    mask_b = df_view[col_carga].astype(str).str.contains("USAGE|BOOST", case=False, na=False)
+    if col_pts:
+        df_view.loc[mask_b, col_pts] = (df_view.loc[mask_b, col_pts] / 1.08).round(1)
+    if col_pra:
+        df_view.loc[mask_b, col_pra] = (df_view.loc[mask_b, col_pra] / 1.08).round(1)
+    if col_3pt:
+        df_view.loc[mask_b, col_3pt] = (df_view.loc[mask_b, col_3pt] / 1.05).round(2)
 
 # ==============================================================================
-# PESTAÑAS PRINCIPALES (INTERFAZ DE JUGADORES VISIBLE AL INSTANTE)
+# PESTAÑAS: 1. INTERFAZ DE JUGADORES | 2. SIMULADOR PARLAY & RUSHBET
 # ==============================================================================
-tab1, tab2, tab3 = st.tabs([
-    "🏀 1. Interfaz de Jugadores & Proyecciones",
-    "🧮 2. Constructor Parlay + Cuota Rushbet (EV)",
-    "📒 3. Cierre Automático & Bitácora",
+tab1, tab2 = st.tabs([
+    "🏀 Jugadores & Proyecciones",
+    "🧮 Simulador Parlay (3 Patas)",
 ])
 
 with tab1:
-    f1, f2, f3, f4 = st.columns(4)
-    equipos_disp = ["Todos"] + sorted(df["Equipo"].unique().tolist())
-    eq_filtro = f1.selectbox("Equipo", equipos_disp)
-    solo_activos = f2.checkbox("Ocultar 🟡 GTD (Solo Activos)", value=True)
-    deflactar_boost = f3.checkbox("Quitar bono +8% (Simular base pura)", value=False)
-    estabilidad_filtro = f4.multiselect(
-        "Estabilidad",
-        options=df["Estabilidad"].unique().tolist(),
-        default=df["Estabilidad"].unique().tolist(),
-    )
-
-    df_view = df.copy()
-    if eq_filtro != "Todos":
-        df_view = df_view[df_view["Equipo"] == eq_filtro]
-    if solo_activos:
-        df_view = df_view[~df_view[col_estado].astype(str).str.contains("GTD", na=False)]
-    if estabilidad_filtro:
-        df_view = df_view[df_view["Estabilidad"].isin(estabilidad_filtro)]
-
-    if deflactar_boost:
-        mask_b = df_view[col_carga].astype(str).str.contains("USAGE", na=False)
-        df_view.loc[mask_b, "PTS Proyectados"] = (df_view.loc[mask_b, "PTS Proyectados"] / 1.08).round(1)
-        df_view.loc[mask_b, "PRA Promedios"] = (df_view.loc[mask_b, "PRA Promedios"] / 1.08).round(1)
-        df_view.loc[mask_b, col_3pt] = (df_view.loc[mask_b, col_3pt] / 1.05).round(2)
-        df_view["Prob >19.5 PTS (%)"] = df_view.apply(
-            lambda r: round(prob_normal_over(r["PTS Proyectados"], r["Varianza (std)"], 20) * 100, 1), axis=1
-        )
-        df_view["Prob >1.5 Triples (%)"] = df_view.apply(
-            lambda r: round(prob_poisson_over(r[col_3pt], 2) * 100, 1), axis=1
-        )
-        df_view["Prob >34.5 PRA (%)"] = df_view.apply(
-            lambda r: round(prob_normal_over(r["PRA Promedios"], max(float(r["Varianza (std)"]) * 1.12, 3.5), 35) * 100, 1), axis=1
-        )
-
-    df_view["Alerta Ritmo"] = df_view.apply(
-        lambda r: evaluar_riesgo_blowout(r[col_def], r["PTS Proyectados"]), axis=1
-    )
-
-    st.subheader("🔥 Top 4 Jugadores Destacados de la Cartelera")
-    top4 = df_view.sort_values(by=["PTS Proyectados", "PRA Promedios"], ascending=False).head(4)
-    if not top4.empty:
-        cards = st.columns(len(top4))
-        for idx, (_, r) in enumerate(top4.iterrows()):
-            with cards[idx]:
+    if col_pts and not df_view.empty:
+        st.subheader("🔥 Líderes Proyectados de la Jornada")
+        top_df = df_view.sort_values(by=col_pts, ascending=False).head(4)
+        cols_top = st.columns(len(top_df))
+        for i, (_, row) in enumerate(top_df.iterrows()):
+            with cols_top[i]:
+                eq_txt = f" ({row[col_eq]})" if col_eq else ""
+                pra_txt = f" | {row[col_pra]} PRA" if col_pra else ""
+                tri_txt = f"3PT: {row[col_3pt]}" if col_3pt else ""
+                est_txt = f" | {row[col_estab]}" if col_estab else ""
                 st.metric(
-                    label=f"{r['Jugador']} ({r['Equipo']})",
-                    value=f"{r['PTS Proyectados']} PTS | {r['PRA Promedios']} PRA",
-                    delta=f"3PT: {r[col_3pt]} | {r['Estabilidad']}",
+                    label=f"{row[col_jug]}{eq_txt}",
+                    value=f"{row[col_pts]} PTS{pra_txt}",
+                    delta=f"{tri_txt}{est_txt}".strip(" |"),
                 )
-                st.caption(f"{r[col_rival]} | {r[col_carga]} | σ={r['Varianza (std)']}")
+                sub_parts = []
+                if col_rival:
+                    sub_parts.append(str(row[col_rival]))
+                if col_carga:
+                    sub_parts.append(str(row[col_carga]))
+                if sub_parts:
+                    st.caption(" • ".join(sub_parts))
 
-    st.divider()
-    st.subheader("📋 Tabla Completa de Jugadores y Probabilidades")
+        st.divider()
+
+    st.subheader("📋 Tabla Completa de Jugadores")
     st.dataframe(df_view, use_container_width=True, hide_index=True)
 
 with tab2:
-    st.subheader("Constructor de Parlay (3 Patas) con Cuotas Reales de Rushbet")
-    jugadores_activos = df[~df[col_estado].astype(str).str.contains("GTD", na=False)]["Jugador"].tolist()
-    patas_seleccionadas = []
+    st.subheader("Probabilidad Conjunta y Cuota Mínima Rentable (EV > 0)")
+    lista_jugadores = df_view[col_jug].dropna().astype(str).tolist()
+    if len(lista_jugadores) < 3:
+        lista_jugadores = df[col_jug].dropna().astype(str).tolist()
 
-    cols_patas = st.columns(3)
-    for idx, col in enumerate(cols_patas, 1):
-        with col:
+    patas = []
+    cols_p = st.columns(3)
+    for idx, c in enumerate(cols_p, 1):
+        with c:
             st.markdown(f"**Pata #{idx}**")
-            jug = st.selectbox(f"Jugador {idx}", jugadores_activos, index=min(idx - 1, len(jugadores_activos) - 1), key=f"jug_{idx}")
-            fila = df[df["Jugador"] == jug].iloc[0]
+            j_sel = st.selectbox(f"Jugador {idx}", lista_jugadores, index=min(idx - 1, len(lista_jugadores) - 1), key=f"p_jug_{idx}")
+            r_jug = df[df[col_jug].astype(str) == j_sel].iloc[0]
 
-            quitar_boost_pata = st.checkbox("Quitar bono +8%/+5%", value=False, key=f"nb_{idx}")
-            mercado = st.selectbox("Mercado", ["Puntos (Over)", "PRA (Over)", "Triples (Over)"], key=f"merc_{idx}")
+            mercados_disp = []
+            if col_pts:
+                mercados_disp.append("Puntos (Over)")
+            if col_pra:
+                mercados_disp.append("PRA (Over)")
+            if col_3pt:
+                mercados_disp.append("Triples (Over)")
 
-            if mercado == "Puntos (Over)":
-                linea = st.number_input("Línea entera (ej. 20 para 20+)", min_value=8, max_value=55, value=20, key=f"lin_{idx}")
-                mu = fila["PTS Proyectados"] / (1.08 if quitar_boost_pata and "USAGE" in str(fila[col_carga]) else 1.0)
-                std = float(fila["Varianza (std)"])
-                prob = prob_normal_over(mu, std, linea)
-                desc = f"{jug} {linea}+ PTS"
-            elif mercado == "PRA (Over)":
-                linea = st.number_input("Línea entera PRA (ej. 35 para 35+)", min_value=15, max_value=70, value=35, step=5, key=f"lin_{idx}")
-                mu = fila["PRA Promedios"] / (1.08 if quitar_boost_pata and "USAGE" in str(fila[col_carga]) else 1.0)
-                std_pra = max(float(fila["Varianza (std)"]) * 1.12, 3.5)
-                prob = prob_normal_over(mu, std_pra, linea)
-                desc = f"{jug} {linea}+ PRA"
+            merc = st.selectbox("Mercado", mercados_disp, key=f"p_merc_{idx}")
+            std_val = float(r_jug[col_std]) if col_std else 5.0
+
+            if merc == "Puntos (Over)":
+                lin = st.number_input("Línea entera (ej. 20 para 20+)", min_value=5, max_value=55, value=20, key=f"p_lin_{idx}")
+                prob = prob_normal_over(float(r_jug[col_pts]), std_val, lin)
+            elif merc == "PRA (Over)":
+                lin = st.number_input("Línea entera PRA (ej. 35 para 35+)", min_value=15, max_value=70, value=35, step=5, key=f"p_lin_{idx}")
+                prob = prob_normal_over(float(r_jug[col_pra]), max(std_val * 1.12, 3.5), lin)
             else:
-                linea = st.number_input("Línea entera Triples (ej. 2 para 2+)", min_value=1, max_value=8, value=2, key=f"lin_{idx}")
-                lam = fila[col_3pt] / (1.05 if quitar_boost_pata and "USAGE" in str(fila[col_carga]) else 1.0)
-                prob = prob_poisson_over(lam, linea)
-                desc = f"{jug} {linea}+ 3PT"
+                lin = st.number_input("Línea entera Triples (ej. 2 para 2+)", min_value=1, max_value=8, value=2, key=f"p_lin_{idx}")
+                prob = prob_poisson_over(float(r_jug[col_3pt]), lin)
 
-            partido_norm = " vs ".join(sorted([str(fila["Equipo"]), str(fila[col_rival]).replace("vs ", "")]))
-            st.caption(f"Partido: `{partido_norm}` | Prob. Pata: **{prob*100:.1f}%**")
-            patas_seleccionadas.append({"desc": desc, "prob": prob, "partido": partido_norm})
-
-    partidos_unicos = {p["partido"] for p in patas_seleccionadas}
-    if len(partidos_unicos) < 3:
-        st.error("⚠️ ALERTA DE CORRELACIÓN: Dos o más patas pertenecen al mismo partido.")
+            st.caption(f"Probabilidad estimada: **{prob*100:.1f}%**")
+            patas.append(prob)
 
     st.divider()
-    col_q1, col_q2, col_q3, col_q4 = st.columns(4)
-    cuota_rushbet = col_q1.number_input("Cuota Total en Rushbet (@)", min_value=1.10, max_value=20.00, value=2.25, step=0.01)
-    boleto_tipo = col_q2.selectbox("Asignación de Boleto", ["Combinada A (65%)", "Combinada B (35%)"])
+    c_ev1, c_ev2, c_ev3 = st.columns(3)
+    cuota_rb = c_ev1.number_input("Cuota en Rushbet (@)", min_value=1.10, max_value=20.00, value=2.25, step=0.01)
+    prob_total = patas[0] * patas[1] * patas[2]
+    cuota_min = (1.0 / prob_total) if prob_total > 0 else 99.0
+    ev = (prob_total * cuota_rb - 1.0) * 100.0
 
-    prob_conjunta = patas_seleccionadas[0]["prob"] * patas_seleccionadas[1]["prob"] * patas_seleccionadas[2]["prob"]
-    cuota_minima_ev = (1.0 / prob_conjunta) if prob_conjunta > 0 else 99.0
-    ev_pct = (prob_conjunta * cuota_rushbet - 1.0) * 100.0
-    kelly_opt = calcular_kelly_fraccion(prob_conjunta, cuota_rushbet) * 100.0
-
-    stake_asignado = stake_a if "A" in boleto_tipo else stake_b
-    cobro_potencial = int(round(stake_asignado * cuota_rushbet))
-
-    col_q3.metric("Probabilidad Conjunta", f"{prob_conjunta*100:.1f}%", f"Mín EV>0: @{cuota_minima_ev:.2f}")
-    col_q4.metric("Valor Esperado (EV)", f"{ev_pct:+.1f}%", f"Medio Kelly: {kelly_opt*0.5:.1f}%")
-
-    if cuota_rushbet >= 2.00 and ev_pct >= 15.0 and len(partidos_unicos) == 3:
-        st.success(
-            f"✅ **BOLETO APROBADO:** `{cuota_rushbet:.2f}` con **EV `{ev_pct:+.1f}%`** | "
-            f"Apuesta: **`${stake_asignado:,} COP`** $\\rightarrow$ Cobro bruto: **`${cobro_potencial:,} COP`**."
-        )
-        if st.button("📌 Registrar este boleto como PENDIENTE en Bitácora", use_container_width=True):
-            df_bit = cargar_bitacora()
-            nueva_fila = pd.DataFrame([{
-                "Fecha": HOY_STR,
-                "Boleto": "Combinada A" if "A" in boleto_tipo else "Combinada B",
-                "Selecciones": " | ".join([p["desc"] for p in patas_seleccionadas]),
-                "Cuota": round(cuota_rushbet, 2),
-                "Prob_Modelo_%": round(prob_conjunta * 100, 1),
-                "Apuesta_COP": stake_asignado,
-                "Estado": "PENDIENTE",
-                "Retorno_COP": 0,
-                "Saldo_Post_COP": banca_actual,
-            }])
-            df_bit = pd.concat([df_bit, nueva_fila], ignore_index=True)
-            guardar_bitacora(df_bit)
-            st.toast("Boleto guardado en bitácora.")
-
-with tab3:
-    st.subheader("Cierre Rápido de Jornada (Actualiza tu Saldo Automáticamente)")
-    c_liq1, c_liq2, c_liq3, c_liq4 = st.columns(4)
-    liq_boleto = c_liq1.selectbox("Boleto a liquidar", ["Combinada A", "Combinada B"])
-    liq_apuesta = c_liq2.number_input("Monto apostado (COP)", min_value=500, max_value=5000000, value=stake_a if liq_boleto == "Combinada A" else stake_b, step=100)
-    liq_cuota = c_liq3.number_input("Cuota final pagada (@)", min_value=1.00, max_value=20.00, value=2.20, step=0.01)
-    liq_res = c_liq4.selectbox("Resultado", ["GANADA ✅", "PERDIDA ❌", "ANULADA / VOID ⚪"])
-
-    if st.button("⚡ Liquidar Boleto y Actualizar Saldo Automáticamente", type="primary", use_container_width=True):
-        if "GANADA" in liq_res:
-            retorno = int(round(liq_apuesta * liq_cuota))
-            nuevo_saldo = banca_actual - liq_apuesta + retorno
-        elif "PERDIDA" in liq_res:
-            retorno = 0
-            nuevo_saldo = banca_actual - liq_apuesta
-        else:
-            retorno = liq_apuesta
-            nuevo_saldo = banca_actual
-
-        st.session_state["saldo_banca"] = int(nuevo_saldo)
-        guardar_estado_banca(nuevo_saldo, piso_seguridad, pct_riesgo_diario)
-
-        df_bit = cargar_bitacora()
-        reg_cierre = pd.DataFrame([{
-            "Fecha": HOY_STR,
-            "Boleto": liq_boleto,
-            "Selecciones": "Cierre directo desde panel",
-            "Cuota": round(liq_cuota, 2),
-            "Prob_Modelo_%": 0.0,
-            "Apuesta_COP": int(liq_apuesta),
-            "Estado": liq_res.split()[0],
-            "Retorno_COP": retorno,
-            "Saldo_Post_COP": int(nuevo_saldo),
-        }])
-        df_bit = pd.concat([df_bit, reg_cierre], ignore_index=True)
-        guardar_bitacora(df_bit)
-        st.success(f"Saldo actualizado automáticamente a **`${nuevo_saldo:,} COP`**.")
-        st.rerun()
-
-    st.divider()
-    df_bit_actual = cargar_bitacora()
-    st.dataframe(df_bit_actual, use_container_width=True, hide_index=True)
-    csv_bytes = df_bit_actual.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
-    st.download_button(
-        label="⬇️ Descargar Respaldo de Bitácora (CSV)",
-        data=csv_bytes,
-        file_name=f"Bitacora_YZ_Quant_{HOY_STR}.csv",
-        mime="text/csv",
-    )
+    c_ev2.metric("Probabilidad Conjunta", f"{prob_total*100:.1f}%", f"Cuota mín EV>0: @{cuota_min:.2f}")
+    c_ev3.metric("Valor Esperado (EV)", f"{ev:+.1f}%")
