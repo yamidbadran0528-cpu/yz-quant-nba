@@ -21,16 +21,14 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
-# Parámetros del motor de lesiones y redistribución de uso
-MIN_JUEGOS_L10_PARA_BOOST = 2      # Debe haber jugado al menos 2 de los últimos 10 partidos
-MIN_MINUTOS_L10_PARA_BOOST = 18.0  # Debe promediar >= 18.0 MIN en L10 para disparar boost
-BOOST_PTS_PRA = 1.08               # +8% en Puntos y PRA ante baja real de rotación
-BOOST_3PT = 1.05                   # +5% en Triples ante baja real de rotación
-VENTANA_L10 = 10                   # Últimos 10 partidos disputados por equipo
+MIN_JUEGOS_L10_PARA_BOOST = 2
+MIN_MINUTOS_L10_PARA_BOOST = 18.0
+BOOST_PTS_PRA = 1.08
+BOOST_3PT = 1.05
+VENTANA_L10 = 10
 
 
 def normalizar_texto(texto: str) -> str:
-    """Elimina tildes, puntos y espacios extra para cruzar nombres entre endpoints."""
     if not isinstance(texto, str):
         return ""
     texto_norm = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("utf-8")
@@ -38,7 +36,6 @@ def normalizar_texto(texto: str) -> str:
 
 
 def obtener_json(url: str, params: dict = None, reintentos: int = 3) -> dict:
-    """Consulta segura con reintentos ante límites temporales de red."""
     for intento in range(reintentos):
         try:
             resp = requests.get(url, params=params, headers=HEADERS, timeout=15)
@@ -53,7 +50,6 @@ def obtener_json(url: str, params: dict = None, reintentos: int = 3) -> dict:
 
 
 def obtener_cartelera_hoy(fecha_yyyymmdd: str) -> list:
-    """Extrae los partidos programados para hoy desde ESPN Scoreboard."""
     data = obtener_json(f"{BASE_ESPN}/scoreboard", params={"dates": fecha_yyyymmdd})
     partidos = []
     for event in data.get("events", []):
@@ -78,41 +74,31 @@ def obtener_cartelera_hoy(fecha_yyyymmdd: str) -> list:
     return partidos
 
 
-def obtener_reporte_lesiones() -> dict:
+def obtener_reporte_lesiones_roster(equipos_hoy: dict) -> dict:
     """
-    Descarga el reporte médico oficial de ESPN y clasifica cada jugador por equipo:
-    - 'OUT': Out / Suspension / Injured Reserve
-    - 'GTD': Questionable / Doubtful / Day-To-Day
+    Lee lesiones directamente desde /teams/{team_id}/roster, donde ESPN sí
+    incluye el array 'injuries' por jugador con su estado real (Out, Questionable, Doubtful, Day-To-Day).
     """
-    data = obtener_json(f"{BASE_ESPN}/injuries")
     reporte = {}
-
-    for team_block in data.get("injuries", []):
-        team_info = team_block.get("team", {})
-        abbr = team_info.get("abbreviation", "")
-        if not abbr:
-            continue
-        reporte.setdefault(abbr, {"OUT": [], "GTD": []})
-
-        for item in team_block.get("injuries", []):
-            athlete = item.get("athlete", {})
-            nombre = athlete.get("displayName", "")
-            status_raw = str(item.get("status", "")).lower()
-
-            if not nombre:
+    for abbr, team_id in equipos_hoy.items():
+        reporte[abbr] = {"OUT": [], "GTD": []}
+        data = obtener_json(f"{BASE_ESPN}/teams/{team_id}/roster")
+        for ath in data.get("athletes", []):
+            nombre = ath.get("displayName", "")
+            injuries = ath.get("injuries", [])
+            if not nombre or not injuries:
                 continue
 
+            status_raw = str(injuries[0].get("status", "")).lower()
             if any(k in status_raw for k in ["out", "susp", "inj"]):
                 reporte[abbr]["OUT"].append(nombre)
-            elif any(k in status_raw for k in ["questionable", "doubtful", "day-to-day", "gtd", "probable"]):
-                if "probable" not in status_raw:
-                    reporte[abbr]["GTD"].append(nombre)
+            elif any(k in status_raw for k in ["questionable", "doubtful", "day-to-day", "gtd"]):
+                reporte[abbr]["GTD"].append(nombre)
 
     return reporte
 
 
 def obtener_ultimos_eventos_equipo(team_id: str, limite: int = VENTANA_L10) -> list:
-    """Obtiene los IDs de los últimos N partidos ya finalizados de un equipo."""
     data = obtener_json(f"{BASE_ESPN}/teams/{team_id}/schedule")
     eventos_finalizados = []
 
@@ -128,10 +114,6 @@ def obtener_ultimos_eventos_equipo(team_id: str, limite: int = VENTANA_L10) -> l
 
 
 def extraer_boxscore_evento(event_id: str, cache_boxscores: dict) -> dict:
-    """
-    Descarga y parsea el boxscore de un partido finalizado (con caché en memoria).
-    Retorna registros individuales por jugador y puntos permitidos por cada equipo.
-    """
     if event_id in cache_boxscores:
         return cache_boxscores[event_id]
 
@@ -224,11 +206,6 @@ def tiene_baja_real_rotacion(
     min_juegos: int = MIN_JUEGOS_L10_PARA_BOOST,
     min_minutos: float = MIN_MINUTOS_L10_PARA_BOOST,
 ) -> tuple[bool, list]:
-    """
-    FILTRO ANTI-FALSOS POSITIVOS:
-    Verifica si los jugadores reportados como OUT en ESPN realmente jugaron en la
-    rotación reciente (L10) del equipo antes de disparar el +8% de usage.
-    """
     if not lista_out or df_logs_equipo.empty:
         return False, []
 
@@ -246,11 +223,10 @@ def tiene_baja_real_rotacion(
 
 
 def clasificar_estabilidad(std_pts: float) -> str:
-    if std_pts <= 5.2:
+    """Clasificación original de 2 niveles: ⭐ ALTA (<= 6.5) y ESTÁNDAR (> 6.5)."""
+    if std_pts <= 6.5:
         return "⭐ ALTA"
-    elif std_pts <= 7.2:
-        return "⚖️ MEDIA"
-    return "⚠️ VOLÁTIL"
+    return "ESTÁNDAR"
 
 
 def ejecutar_pipeline():
@@ -261,13 +237,14 @@ def ejecutar_pipeline():
         return
 
     print(f"[INFO] Partidos detectados hoy: {len(partidos)}")
-    lesiones = obtener_reporte_lesiones()
     cache_boxscores = {}
 
     equipos_hoy = {}
     for p in partidos:
         equipos_hoy[p["home_abbr"]] = p["home_id"]
         equipos_hoy[p["away_abbr"]] = p["away_id"]
+
+    lesiones = obtener_reporte_lesiones_roster(equipos_hoy)
 
     logs_por_equipo = {}
     def_rating_relativo = {}
@@ -353,7 +330,6 @@ def ejecutar_pipeline():
                 usage_auto = "🚀 USAGE AUTO (+8%)" if tiene_boost else "🟢 NORMAL"
                 estabilidad = clasificar_estabilidad(std_pts)
 
-                # Estructura exacta requerida por app_nba.py
                 registros_json.append({
                     "Jugador": jug_nombre,
                     "Equipo": eq_abbr,
@@ -377,7 +353,6 @@ def ejecutar_pipeline():
 
     registros_json.sort(key=lambda x: (x["PTS Base"], x["PRA Base"]), reverse=True)
 
-    # Guardar exactamente el archivo que rastrea GitHub Actions y lee app_nba.py
     with open("datos_nba_hoy.json", "w", encoding="utf-8") as f:
         json.dump(registros_json, f, ensure_ascii=False, indent=2)
 
