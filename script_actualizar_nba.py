@@ -1,7 +1,8 @@
+import json
 import os
 import time
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -80,8 +81,8 @@ def obtener_cartelera_hoy(fecha_yyyymmdd: str) -> list:
 def obtener_reporte_lesiones() -> dict:
     """
     Descarga el reporte médico oficial de ESPN y clasifica cada jugador por equipo:
-      - 'OUT': Out / Suspension / Injured Reserve
-      - 'GTD': Questionable / Doubtful / Day-To-Day
+    - 'OUT': Out / Suspension / Injured Reserve
+    - 'GTD': Questionable / Doubtful / Day-To-Day
     """
     data = obtener_json(f"{BASE_ESPN}/injuries")
     reporte = {}
@@ -174,7 +175,13 @@ def extraer_boxscore_evento(event_id: str, cache_boxscores: dict) -> dict:
                 reb = float(stat_map.get("REB", 0))
                 ast = float(stat_map.get("AST", 0))
                 tpt_raw = str(stat_map.get("3PT", "0-0"))
-                tpt_made = float(tpt_raw.split("-")[0]) if "-" in tpt_raw else float(tpt_raw)
+                if "-" in tpt_raw:
+                    partes_3 = tpt_raw.split("-")
+                    tpt_made = float(partes_3[0])
+                    tpt_att = float(partes_3[1])
+                else:
+                    tpt_made = float(tpt_raw)
+                    tpt_att = tpt_made
             except ValueError:
                 continue
 
@@ -189,12 +196,12 @@ def extraer_boxscore_evento(event_id: str, cache_boxscores: dict) -> dict:
                 "REB": reb,
                 "AST": ast,
                 "3PT": tpt_made,
+                "3PA": tpt_att,
                 "PRA": pts + reb + ast,
             })
 
         puntos_por_equipo[team_abbr] = total_pts_equipo
 
-    # Calcular puntos permitidos por cada equipo en ese partido
     equipos_en_juego = list(puntos_por_equipo.keys())
     puntos_permitidos = {}
     if len(equipos_en_juego) == 2:
@@ -218,10 +225,9 @@ def tiene_baja_real_rotacion(
     min_minutos: float = MIN_MINUTOS_L10_PARA_BOOST,
 ) -> tuple[bool, list]:
     """
-    FILTRO ANTI-FALSOS POSITIVOS (Ej. Tobias Harris en Spurs):
+    FILTRO ANTI-FALSOS POSITIVOS:
     Verifica si los jugadores reportados como OUT en ESPN realmente jugaron en la
-    rotación reciente (L10) del equipo. Si un fichaje aún no debuta (0 juegos en L10)
-    o es una baja de larga duración, NO dispara el +8% de usage sobre sus compañeros.
+    rotación reciente (L10) del equipo antes de disparar el +8% de usage.
     """
     if not lista_out or df_logs_equipo.empty:
         return False, []
@@ -258,7 +264,6 @@ def ejecutar_pipeline():
     lesiones = obtener_reporte_lesiones()
     cache_boxscores = {}
 
-    # Recolectar los últimos 10 partidos de todos los equipos que juegan hoy
     equipos_hoy = {}
     for p in partidos:
         equipos_hoy[p["home_abbr"]] = p["home_id"]
@@ -287,19 +292,19 @@ def ejecutar_pipeline():
 
     promedio_liga_pts = np.mean(todos_pts_permitidos) if todos_pts_permitidos else 113.5
     factor_def_equipo = {
-        abbr: round(def_rating_relativo[abbr] / promedio_liga_pts, 3)
+        abbr: round(float(def_rating_relativo[abbr] / promedio_liga_pts), 2)
         for abbr in equipos_hoy
     }
 
-    filas_salida = []
+    registros_json = []
 
     for p in partidos:
         enfrentamientos = [
-            (p["away_abbr"], p["home_abbr"], p["partido"]),
-            (p["home_abbr"], p["away_abbr"], p["partido"]),
+            (p["away_abbr"], f"@ {p['home_abbr']}", p["home_abbr"]),
+            (p["home_abbr"], f"vs {p['away_abbr']}", p["away_abbr"]),
         ]
 
-        for eq_abbr, rival_abbr, nombre_partido in enfrentamientos:
+        for eq_abbr, rival_label, rival_abbr in enfrentamientos:
             df_eq = logs_por_equipo.get(eq_abbr, pd.DataFrame())
             if df_eq.empty:
                 continue
@@ -308,7 +313,6 @@ def ejecutar_pipeline():
             out_norms = {normalizar_texto(n) for n in info_les["OUT"]}
             gtd_norms = {normalizar_texto(n) for n in info_les["GTD"]}
 
-            # Verificar si existe una baja REAL de rotación en L10 antes de aplicar +8%
             aplica_boost, bajas_confirmadas = tiene_baja_real_rotacion(
                 eq_abbr, info_les["OUT"], df_eq
             )
@@ -322,64 +326,62 @@ def ejecutar_pipeline():
                 )
 
             f_def = factor_def_equipo.get(rival_abbr, 1.00)
-            # Amortiguamos el factor defensivo al 50% para evitar sobreajuste extremo
             multiplicador_def = 1.0 + (f_def - 1.0) * 0.50
 
             for (jug_norm, jug_nombre), grp in df_eq.groupby(["Jugador_Norm", "Jugador"]):
-                # 1. Excluir jugadores confirmados OUT
                 if jug_norm in out_norms:
                     continue
 
-                # 2. Filtrar jugadores de rotación real (>= 4 juegos en L10 y >= 18 min)
                 if len(grp) < 4 or grp["MIN"].mean() < 18.0:
                     continue
 
-                estado = "🟡 GTD" if jug_norm in gtd_norms else "🟢 ACTIVO"
+                estado_espn = "GTD" if jug_norm in gtd_norms else "ACTIVO"
 
-                # Solo los titulares/rotación principal (>= 24 min) reciben el boost de usage
                 es_rotacion_alta = grp["MIN"].mean() >= 24.0
-                mult_pts_pra = (BOOST_PTS_PRA if (aplica_boost and es_rotacion_alta) else 1.0) * multiplicador_def
-                mult_3pt = (BOOST_3PT if (aplica_boost and es_rotacion_alta) else 1.0) * multiplicador_def
+                tiene_boost = aplica_boost and es_rotacion_alta
 
-                pts_proy = round(grp["PTS"].mean() * mult_pts_pra, 1)
-                reb_proy = round(grp["REB"].mean(), 1)
-                ast_proy = round(grp["AST"].mean(), 1)
-                tpt_proy = round(grp["3PT"].mean() * mult_3pt, 1)
-                pra_proy = round(grp["PRA"].mean() * mult_pts_pra, 1)
-                std_pts = round(max(float(grp["PTS"].std(ddof=1)), 2.5), 1)
-                std_pra = round(max(float(grp["PRA"].std(ddof=1)), 3.5), 1)
+                mult_pts_pra = (BOOST_PTS_PRA if tiene_boost else 1.0) * multiplicador_def
+                mult_3pt = (BOOST_3PT if tiene_boost else 1.0) * multiplicador_def
 
-                contexto = "🚀 USAGE +8%" if (aplica_boost and es_rotacion_alta) else "🟢 NORMAL"
+                pts_base = round(float(grp["PTS"].mean() * mult_pts_pra), 2)
+                tpt_base = round(float(grp["3PT"].mean() * mult_3pt), 2)
+                pra_base = round(float(grp["PRA"].mean() * mult_pts_pra), 2)
+                std_pts = round(max(float(grp["PTS"].std(ddof=1)), 2.5), 2)
+                tpa_prom = round(float(grp["3PA"].mean()), 1)
+                min_l10 = round(float(grp["MIN"].mean()), 1)
+
+                usage_auto = "🚀 USAGE AUTO (+8%)" if tiene_boost else "🟢 NORMAL"
                 estabilidad = clasificar_estabilidad(std_pts)
 
-                filas_salida.append({
+                # Estructura exacta requerida por app_nba.py
+                registros_json.append({
                     "Jugador": jug_nombre,
                     "Equipo": eq_abbr,
-                    "Rival": rival_abbr,
-                    "Partido": nombre_partido,
-                    "Estado": estado,
-                    "Contexto": contexto,
-                    "Estabilidad": estabilidad,
-                    "MIN Prom": round(grp["MIN"].mean(), 1),
-                    "Defensa Rival": f"{f_def:.2f}x",
-                    "PTS Proyectados": pts_proy,
-                    "REB Proyectados": reb_proy,
-                    "AST Proyectados": ast_proy,
-                    "3PT Proyectados": tpt_proy,
-                    "PRA Promedios": pra_proy,
+                    "Rival": rival_label,
+                    "Estado ESPN": estado_espn,
+                    "Usage Auto": usage_auto,
+                    "Factor Defensivo": f_def,
+                    "Minutos L10": min_l10,
+                    "PTS Base": pts_base,
+                    "3PT Base": tpt_base,
+                    "PRA Base": pra_base,
                     "Varianza (std)": std_pts,
-                    "Varianza PRA (std)": std_pra,
+                    "Estabilidad": estabilidad,
+                    "3PA (Intentos)": tpa_prom,
+                    "Fecha_Actualizacion": HOY,
                 })
 
-    df_final = pd.DataFrame(filas_salida)
-    if df_final.empty:
+    if not registros_json:
         print("[AVISO] No se generaron proyecciones válidas para hoy.")
         return
 
-    df_final = df_final.sort_values(by=["PTS Proyectados", "PRA Promedios"], ascending=False)
-    nombre_csv = f"YZ_Quant_NBA_{HOY}.csv"
-    df_final.to_csv(nombre_csv, index=False, encoding="utf-8-sig")
-    print(f"[OK] Archivo generado exitosamente: {nombre_csv} ({len(df_final)} jugadores activos/GTD)")
+    registros_json.sort(key=lambda x: (x["PTS Base"], x["PRA Base"]), reverse=True)
+
+    # Guardar exactamente el archivo que rastrea GitHub Actions y lee app_nba.py
+    with open("datos_nba_hoy.json", "w", encoding="utf-8") as f:
+        json.dump(registros_json, f, ensure_ascii=False, indent=2)
+
+    print(f"[OK] datos_nba_hoy.json actualizado exitosamente para {HOY} ({len(registros_json)} jugadores).")
 
 
 if __name__ == "__main__":
