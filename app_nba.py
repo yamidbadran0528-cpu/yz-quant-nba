@@ -1,4 +1,5 @@
 import json
+import math
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -6,13 +7,12 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 import streamlit as st
-from scipy import stats
 
 # ==============================================================================
-# CONFIGURACIÓN DE PÁGINA - YZ QUANT NBA v2.1 (PERSISTENCIA AUTOMÁTICA DE BANCA)
+# CONFIGURACIÓN DE PÁGINA - YZ QUANT NBA v2.2 (SIN DEPENDENCIA DE SCIPY)
 # ==============================================================================
 st.set_page_config(
-    page_title="YZ Quant NBA v2.1 | Motor Cuantitativo & Kelly",
+    page_title="YZ Quant NBA v2.2 | Motor Cuantitativo & Kelly",
     page_icon="🏀",
     layout="wide",
 )
@@ -115,18 +115,27 @@ def guardar_bitacora(df_b: pd.DataFrame) -> None:
 
 
 # ==============================================================================
-# FUNCIONES ESTADÍSTICAS Y DE VALOR ESPERADO
+# FUNCIONES ESTADÍSTICAS EXACTAS (100% PYTHON STDLIB MATH, CERO SCIPY)
 # ==============================================================================
 def prob_normal_over(mu: float, std: float, linea_entera: int) -> float:
+    """P(X >= linea_entera) usando Normal exacta con math.erf y corrección de continuidad."""
     std_segura = max(float(std), 2.5)
     umbral = float(linea_entera) - 0.5
-    return float(1.0 - stats.norm.cdf(umbral, loc=float(mu), scale=std_segura))
+    z = (umbral - float(mu)) / std_segura
+    cdf = 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+    return float(max(0.0, min(1.0, 1.0 - cdf)))
 
 
 def prob_poisson_over(lam: float, k_min: int) -> float:
-    if lam <= 0:
+    """P(X >= k_min) usando distribución discreta exacta de Poisson."""
+    lam_f = float(lam)
+    k = int(k_min)
+    if lam_f <= 0.0:
         return 0.0
-    return float(1.0 - stats.poisson.cdf(int(k_min) - 1, mu=float(lam)))
+    if k <= 0:
+        return 1.0
+    cdf = sum((lam_f ** i) * math.exp(-lam_f) / math.factorial(i) for i in range(k))
+    return float(max(0.0, min(1.0, 1.0 - cdf)))
 
 
 def calcular_kelly_fraccion(prob: float, cuota: float) -> float:
@@ -159,7 +168,7 @@ if "piso_banca" not in st.session_state:
 if "pct_riesgo" not in st.session_state:
     st.session_state["pct_riesgo"] = int(estado_guardado["pct_riesgo"])
 
-st.title("🏀 YZ Quant NBA v2.1 — Motor Cuantitativo & Banca Automática")
+st.title("🏀 YZ Quant NBA v2.2 — Motor Cuantitativo & Banca Automática")
 st.caption(f"Calibrado para Rushbet Colombia | Fecha operativa: {HOY_STR} (Hora Bogotá)")
 
 with st.sidebar:
