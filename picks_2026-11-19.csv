@@ -1,0 +1,7 @@
+Jugador,Mercado,Linea,Cuota,Proy_Modelo,Varianza_std,Prob_Estimada,Minutos_L10,Estado_Carga,Estabilidad
+Karl-Anthony Towns,REB,9.5,1.19,14.2,5.40,0.900,33.1,NORMAL,ALTA
+Victor Wembanyama,PRA,39.5,1.41,51.7,12.68,0.832,28.9,USAGE_AUTO,ESTANDAR
+Cedric Coward,REB,5.5,1.27,8.3,6.50,0.835,28.8,USAGE_AUTO,ALTA
+Jalen Brunson,PTS,21.5,1.32,28.0,5.64,0.875,34.0,NORMAL,ALTA
+Damian Lillard,3PT,1.5,1.17,3.2,6.22,0.829,29.1,NORMAL,ALTA
+Brandin Podziemski,3PT,1.5,1.33,3.1,5.87,0.815,31.8,USAGE_AUTO,ALTA
