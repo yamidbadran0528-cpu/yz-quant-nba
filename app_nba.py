@@ -95,6 +95,20 @@ linea_evaluada_pra = st.sidebar.selectbox(
     format_func=lambda x: f">{x} PRA ({int(x + 0.5)}+)"
 )
 
+linea_evaluada_reb = st.sidebar.selectbox(
+    "Línea Rebotes (Pisos Rushbet 2 en 2)",
+    [5.5, 7.5, 9.5, 11.5],
+    index=1,
+    format_func=lambda x: f">{x} REB ({int(x + 0.5)}+)"
+)
+
+linea_evaluada_ast = st.sidebar.selectbox(
+    "Línea Asistencias (Pisos Rushbet 2 en 2)",
+    [3.5, 5.5, 7.5, 9.5],
+    index=1,
+    format_func=lambda x: f">{x} AST ({int(x + 0.5)}+)"
+)
+
 min_minutos = st.sidebar.slider("Minutos Mínimos Promedio", 15, 36, 20)
 solo_alta_estabilidad = st.sidebar.checkbox("Mostrar solo estabilidad ⭐ ALTA", False)
 ocultar_gtd = st.sidebar.checkbox("Ocultar jugadores en duda (🟡 GTD)", False)
@@ -131,10 +145,18 @@ bajas_confirmadas = st.sidebar.multiselect(
 )
 
 equipos_con_baja_manual = set()
+equipos_baja_reb_manual = set()
+equipos_baja_ast_manual = set()
+
 for b in bajas_confirmadas:
-    eq = df_raw[df_raw['Jugador'] == b]['Equipo'].values
-    if len(eq) > 0:
-        equipos_con_baja_manual.add(eq[0])
+    fila_b = df_raw[df_raw['Jugador'] == b]
+    if not fila_b.empty:
+        eq_b = fila_b['Equipo'].values[0]
+        equipos_con_baja_manual.add(eq_b)
+        if 'REB Base' in fila_b.columns and float(fila_b['REB Base'].values[0]) >= 6.5:
+            equipos_baja_reb_manual.add(eq_b)
+        if 'AST Base' in fila_b.columns and float(fila_b['AST Base'].values[0]) >= 5.0:
+            equipos_baja_ast_manual.add(eq_b)
 
 procesados = []
 for _, fila in df_raw.iterrows():
@@ -148,27 +170,40 @@ for _, fila in df_raw.iterrows():
     usage_auto_raw = str(fila.get('Usage Auto', '🟢 NORMAL'))
     ya_tiene_boost_auto = "USAGE" in usage_auto_raw
 
+    reb_base_val = float(fila.get('REB Base', 0.0))
+    ast_base_val = float(fila.get('AST Base', 0.0))
+
     if ya_tiene_boost_auto:
         f_usage_pts = 1.00
         f_usage_3pt = 1.00
+        f_usage_reb = 1.00
+        f_usage_ast = 1.00
         descanso_str = usage_auto_raw
     elif fila['Equipo'] in equipos_con_baja_manual and fila['Equipo'] != "NBA Team":
         f_usage_pts = 1.08
         f_usage_3pt = 1.05
+        f_usage_reb = 1.08 if (fila['Equipo'] in equipos_baja_reb_manual and reb_base_val >= 5.0) else 1.00
+        f_usage_ast = 1.08 if (fila['Equipo'] in equipos_baja_ast_manual and ast_base_val >= 3.5) else 1.00
         descanso_str = "🚀 USAGE MANUAL (+8%)"
     else:
         f_usage_pts = 1.00
         f_usage_3pt = 1.00
+        f_usage_reb = 1.00
+        f_usage_ast = 1.00
         descanso_str = "🟢 NORMAL"
 
     pts_proj = fila['PTS Base'] * f_usage_pts
     triples_proj = fila['3PT Base'] * f_usage_3pt
     pra_proj = fila['PRA Base'] * f_usage_pts
+    reb_proj = reb_base_val * f_usage_reb
+    ast_proj = ast_base_val * f_usage_ast
     std_val = float(fila['Varianza (std)'])
 
     prob_pts = calcular_normal_over(pts_proj, std_val, linea_evaluada_pts)
     prob_3pt = calcular_poisson_over(triples_proj, 1.5)
     prob_pra = calcular_normal_over(pra_proj, std_val, linea_evaluada_pra)
+    prob_reb = calcular_poisson_over(reb_proj, linea_evaluada_reb)
+    prob_ast = calcular_poisson_over(ast_proj, linea_evaluada_ast)
 
     colchon_pts = pts_proj - linea_evaluada_pts
 
@@ -189,6 +224,10 @@ for _, fila in df_raw.iterrows():
         'Prob >1.5 Triples (%)': round(prob_3pt * 100, 1),
         'PRA Promedios': round(pra_proj, 1),
         f'Prob >{linea_evaluada_pra} PRA (%)': round(prob_pra * 100, 1),
+        'REB Prom': round(reb_proj, 1),
+        f'Prob >{linea_evaluada_reb} REB (%)': round(prob_reb * 100, 1),
+        'AST Prom': round(ast_proj, 1),
+        f'Prob >{linea_evaluada_ast} AST (%)': round(prob_ast * 100, 1),
         'Varianza (std)': std_val
     })
 
@@ -214,7 +253,13 @@ if filtro_volumen_3pt:
 st.subheader("📊 Ranking de Valor Esperado Calibrado (+EV)")
 criterio_orden = st.radio(
     "Ordenar por:",
-    [f"Puntos (>{linea_evaluada_pts} PTS)", "Triples (>1.5 3PT)", f"PRA (>{linea_evaluada_pra} PRA)"],
+    [
+        f"Puntos (>{linea_evaluada_pts} PTS)",
+        "Triples (>1.5 3PT)",
+        f"PRA (>{linea_evaluada_pra} PRA)",
+        f"Rebotes (>{linea_evaluada_reb} REB)",
+        f"Asistencias (>{linea_evaluada_ast} AST)"
+    ],
     horizontal=True
 )
 
@@ -222,8 +267,12 @@ if criterio_orden == f"Puntos (>{linea_evaluada_pts} PTS)":
     df_mostrar = df_filtrado.sort_values(by=f'Prob >{linea_evaluada_pts} PTS (%)', ascending=False)
 elif criterio_orden == "Triples (>1.5 3PT)":
     df_mostrar = df_filtrado.sort_values(by='Prob >1.5 Triples (%)', ascending=False)
-else:
+elif criterio_orden == f"PRA (>{linea_evaluada_pra} PRA)":
     df_mostrar = df_filtrado.sort_values(by=f'Prob >{linea_evaluada_pra} PRA (%)', ascending=False)
+elif criterio_orden == f"Rebotes (>{linea_evaluada_reb} REB)":
+    df_mostrar = df_filtrado.sort_values(by=f'Prob >{linea_evaluada_reb} REB (%)', ascending=False)
+else:
+    df_mostrar = df_filtrado.sort_values(by=f'Prob >{linea_evaluada_ast} AST (%)', ascending=False)
 
 st.dataframe(
     df_mostrar,
@@ -231,6 +280,8 @@ st.dataframe(
         f"Prob >{linea_evaluada_pts} PTS (%)": st.column_config.ProgressColumn(f"Prob >{linea_evaluada_pts} PTS", format="%.1f%%", min_value=0, max_value=100),
         "Prob >1.5 Triples (%)": st.column_config.ProgressColumn("Prob >1.5 Triples", format="%.1f%%", min_value=0, max_value=100),
         f"Prob >{linea_evaluada_pra} PRA (%)": st.column_config.ProgressColumn(f"Prob >{linea_evaluada_pra} PRA", format="%.1f%%", min_value=0, max_value=100),
+        f"Prob >{linea_evaluada_reb} REB (%)": st.column_config.ProgressColumn(f"Prob >{linea_evaluada_reb} REB", format="%.1f%%", min_value=0, max_value=100),
+        f"Prob >{linea_evaluada_ast} AST (%)": st.column_config.ProgressColumn(f"Prob >{linea_evaluada_ast} AST", format="%.1f%%", min_value=0, max_value=100),
     },
     use_container_width=True,
     hide_index=True
@@ -244,7 +295,9 @@ st.caption("Selecciona jugador, mercado y cuota real de Rushbet para auditar el 
 opciones_mercado = [
     f"Puntos (>{linea_evaluada_pts})",
     "Triples (>1.5)",
-    f"PRA (>{linea_evaluada_pra})"
+    f"PRA (>{linea_evaluada_pra})",
+    f"Rebotes (>{linea_evaluada_reb})",
+    f"Asistencias (>{linea_evaluada_ast})"
 ]
 
 def obtener_prob_seleccion(df_ref, jugador, mercado):
@@ -253,8 +306,12 @@ def obtener_prob_seleccion(df_ref, jugador, mercado):
         return fila_j[f'Prob >{linea_evaluada_pts} PTS (%)'] / 100.0
     elif mercado.startswith("Triples"):
         return fila_j['Prob >1.5 Triples (%)'] / 100.0
-    else:
+    elif mercado.startswith("PRA"):
         return fila_j[f'Prob >{linea_evaluada_pra} PRA (%)'] / 100.0
+    elif mercado.startswith("Rebotes"):
+        return fila_j[f'Prob >{linea_evaluada_reb} REB (%)'] / 100.0
+    else:
+        return fila_j[f'Prob >{linea_evaluada_ast} AST (%)'] / 100.0
 
 jugadores_lista = df_mostrar['Jugador'].tolist()
 
