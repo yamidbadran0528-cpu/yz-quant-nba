@@ -27,6 +27,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas numpy requests
 
+      - name: Auditar jornada anterior en bitácora (si existe picks_ayer.csv)
+        run: python auditar_jornada.py
+
       - name: Ejecutar script de actualización de estadísticas NBA
         run: python script_actualizar_nba.py
 
@@ -35,6 +38,9 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add datos_nba_hoy.json
-          git diff --staged --quiet || git commit -m "🤖 Auto-update: Estadísticas reales NBA del día"
+          if [ -f bitacora_yz_quant.csv ]; then
+            git add bitacora_yz_quant.csv
+          fi
+          git diff --staged --quiet || git commit -m "🤖 Auto-update: Estadísticas NBA y auditoría diaria"
           git pull --rebase origin main
           git push
