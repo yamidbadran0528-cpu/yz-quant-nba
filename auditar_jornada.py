@@ -1,4 +1,5 @@
 import os
+import unicodedata
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import numpy as np
@@ -9,6 +10,13 @@ ZONA_HORARIA = ZoneInfo("America/Bogota")
 BASE_ESPN = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 ARCHIVO_BITACORA = "bitacora_yz_quant.csv"
+
+
+def normalizar_nombre(texto: str) -> str:
+    if not isinstance(texto, str):
+        return ""
+    norm = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("utf-8")
+    return norm.lower().replace(".", "").strip()
 
 
 def obtener_boxscores_fecha(fecha_yyyymmdd: str) -> tuple[dict, dict]:
@@ -58,7 +66,7 @@ def obtener_boxscores_fecha(fecha_yyyymmdd: str) -> tuple[dict, dict]:
                 fga = float(str(m.get("FG", "0-0")).split("-")[-1])
                 fta = float(str(m.get("FT", "0-0")).split("-")[-1])
 
-                stats_jugadores[nombre.lower().strip()] = {
+                stats_jugadores[normalizar_nombre(nombre)] = {
                     "Equipo": eq,
                     "MIN_Obs": mins,
                     "PTS_Obs": pts,
@@ -77,23 +85,27 @@ def obtener_boxscores_fecha(fecha_yyyymmdd: str) -> tuple[dict, dict]:
 def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
     """
     Cruza los picks guardados de una jornada contra los boxscores reales de ESPN
-    y actualiza bitacora_yz_quant.csv con los 4 conjuntos de datos históricos.
+    y actualiza bitacora_yz_quant.csv sin duplicar filas.
     """
     df_picks = pd.read_csv(archivo_picks_dia)
+    df_picks.columns = [c.strip() for c in df_picks.columns]
+
     fecha_espn = fecha_objetivo.replace("-", "")
     stats_obs, margenes = obtener_boxscores_fecha(fecha_espn)
 
     registros = []
     for _, row in df_picks.iterrows():
-        key = str(row["Jugador"]).lower().strip()
+        key = normalizar_nombre(str(row["Jugador"]))
         if key not in stats_obs:
+            print(f"[AVISO] No se encontró boxscore para: {row['Jugador']}")
             continue
+
         obs = stats_obs[key]
-        mkt = str(row["Mercado"]).upper()
+        mkt = str(row["Mercado"]).upper().strip()
         linea = float(row["Linea"])
-        proy = float(row["Proy_Modelo"])
-        std = max(float(row.get("Varianza_std", 2.5)), 2.5)
-        prob_est = float(row["Prob_Estimada"])
+        proy = float(row["Proy_Modelo"]) if pd.notna(row.get("Proy_Modelo")) else np.nan
+        std = max(float(row["Varianza_std"]), 2.5) if pd.notna(row.get("Varianza_std")) else 2.5
+        prob_est = float(row["Prob_Estimada"]) if pd.notna(row.get("Prob_Estimada")) else np.nan
 
         if mkt == "PTS":
             val_obs = obs["PTS_Obs"]
@@ -109,16 +121,18 @@ def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
         acierto = 1 if val_obs > linea else 0
         margen = margenes.get(obs["Equipo"], 0)
         blowout = 1 if abs(margen) >= 15 else 0
-        residuo_z = round((val_obs - proy) / std, 2)
-        brier = round((prob_est - acierto) ** 2, 4)
+        residuo_z = round((val_obs - proy) / std, 2) if pd.notna(proy) else np.nan
+        brier = round((prob_est - acierto) ** 2, 4) if pd.notna(prob_est) else np.nan
 
         registros.append({
             "Fecha": fecha_objetivo,
+            "Boleto": row.get("Boleto", "N/D"),
             "Jugador": row["Jugador"],
             "Equipo": obs["Equipo"],
             "Mercado": mkt,
             "Linea": linea,
             "Cuota": row.get("Cuota", np.nan),
+            "Stake": row.get("Stake", np.nan),
             "Proy_Modelo": proy,
             "Val_Obs": val_obs,
             "Acierto": acierto,
@@ -126,7 +140,7 @@ def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
             "Brier_Score": brier,
             "Min_L10": row.get("Minutos_L10", np.nan),
             "Min_Obs": obs["MIN_Obs"],
-            "Diff_Min": round(obs["MIN_Obs"] - float(row.get("Minutos_L10", obs["MIN_Obs"])), 1),
+            "Diff_Min": round(obs["MIN_Obs"] - float(row["Minutos_L10"]), 1) if pd.notna(row.get("Minutos_L10")) else np.nan,
             "Margen_Partido": margen,
             "Blowout_15plus": blowout,
             "FGA_Obs": obs["FGA_Obs"],
@@ -144,6 +158,7 @@ def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
     else:
         df_total = df_nuevo
 
+    df_total.drop_duplicates(subset=["Fecha", "Jugador", "Mercado", "Linea"], keep="last", inplace=True)
     df_total.to_csv(ARCHIVO_BITACORA, index=False)
     print(f"[OK] {len(df_nuevo)} selecciones auditadas y guardadas en {ARCHIVO_BITACORA} (Total acumulado: {len(df_total)}).")
 
