@@ -51,6 +51,29 @@ def obtener_json(url: str, params: dict = None, reintentos: int = 3) -> dict:
     return {}
 
 
+def clasificar_contexto_vegas(total_ou, spread_detalle: str) -> str:
+    """Clasifica ritmo esperado (Over/Under) y riesgo de paliza (Spread >= 13.5)."""
+    etiquetas = []
+
+    if isinstance(total_ou, (int, float)):
+        if total_ou >= 235.0:
+            etiquetas.append(f"🔥 ALTO ({total_ou})")
+        elif total_ou <= 218.0:
+            etiquetas.append(f"🐢 LENTO ({total_ou})")
+        else:
+            etiquetas.append(f"⚖️ MEDIO ({total_ou})")
+
+    if spread_detalle and spread_detalle not in ("N/D", "EVEN", "PK"):
+        try:
+            margen = abs(float(spread_detalle.split()[-1]))
+            if margen >= 13.5:
+                etiquetas.append(f"⚠️ PALIZA ({spread_detalle})")
+        except (ValueError, IndexError):
+            pass
+
+    return " | ".join(etiquetas) if etiquetas else "N/D"
+
+
 def obtener_cartelera_hoy(fecha_yyyymmdd: str) -> list:
     data = obtener_json(f"{BASE_ESPN}/scoreboard", params={"dates": fecha_yyyymmdd})
     partidos = []
@@ -63,6 +86,22 @@ def obtener_cartelera_hoy(fecha_yyyymmdd: str) -> list:
         home = next((c for c in competitors if c.get("homeAway") == "home"), competitors[0])
         away = next((c for c in competitors if c.get("homeAway") == "away"), competitors[1])
 
+        odds_list = comp.get("odds", [])
+        total_ou = "N/D"
+        spread_detalle = "N/D"
+        if odds_list and isinstance(odds_list[0], dict):
+            ou_raw = odds_list[0].get("overUnder")
+            if ou_raw is not None:
+                try:
+                    total_ou = round(float(ou_raw), 1)
+                except (ValueError, TypeError):
+                    total_ou = "N/D"
+            det_raw = odds_list[0].get("details")
+            if det_raw:
+                spread_detalle = str(det_raw)
+
+        contexto_vegas = clasificar_contexto_vegas(total_ou, spread_detalle)
+
         partidos.append({
             "event_id": event.get("id"),
             "partido": f"{away['team']['displayName']} vs {home['team']['displayName']}",
@@ -72,6 +111,9 @@ def obtener_cartelera_hoy(fecha_yyyymmdd: str) -> list:
             "away_id": away["team"]["id"],
             "away_abbr": away["team"]["abbreviation"],
             "away_name": away["team"]["displayName"],
+            "total_ou": total_ou,
+            "spread": spread_detalle,
+            "contexto_vegas": contexto_vegas,
         })
     return partidos
 
@@ -278,6 +320,9 @@ def ejecutar_pipeline():
         return
 
     print(f"[INFO] Partidos detectados hoy: {len(partidos)}")
+    for p in partidos:
+        print(f"  - {p['partido']} | O/U: {p['total_ou']} | Spread: {p['spread']} | {p['contexto_vegas']}")
+
     cache_boxscores = {}
 
     equipos_hoy = {}
@@ -428,6 +473,9 @@ def ejecutar_pipeline():
                     "Factor Defensivo": f_def,
                     "Factor Ritmo REB": f_reb_rival,
                     "Factor Ritmo AST": f_ast_rival,
+                    "Total_Partido_OU": p["total_ou"],
+                    "Spread": p["spread"],
+                    "Contexto_Vegas": p["contexto_vegas"],
                     "Minutos L10": min_l10,
                     "PTS Base": pts_base,
                     "3PT Base": tpt_base,
