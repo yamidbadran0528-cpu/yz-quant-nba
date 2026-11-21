@@ -1,3 +1,4 @@
+import math
 import os
 import unicodedata
 from datetime import datetime, timedelta
@@ -17,6 +18,20 @@ def normalizar_nombre(texto: str) -> str:
         return ""
     norm = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("utf-8")
     return norm.lower().replace(".", "").strip()
+
+
+def prueba_exacta_fisher_binomial(aciertos: int, total: int, prob_h0: float) -> float:
+    """
+    Calcula el Valor p exacto unilateral (cola superior) bajo la hipótesis nula H0:
+    el modelo no tiene ventaja real sobre la probabilidad implícita de la casa (1 / Cuota).
+    """
+    if total <= 0:
+        return 1.0
+    prob_h0 = min(max(prob_h0, 1e-6), 1.0 - 1e-6)
+    return sum(
+        math.comb(total, i) * (prob_h0 ** i) * ((1.0 - prob_h0) ** (total - i))
+        for i in range(aciertos, total + 1)
+    )
 
 
 def obtener_boxscores_fecha(fecha_yyyymmdd: str) -> tuple[dict, dict]:
@@ -84,8 +99,8 @@ def obtener_boxscores_fecha(fecha_yyyymmdd: str) -> tuple[dict, dict]:
 
 def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
     """
-    Cruza los picks guardados de una jornada contra los boxscores reales de ESPN
-    y actualiza bitacora_yz_quant.csv sin duplicar filas.
+    Cruza los picks guardados de una jornada contra los boxscores reales de ESPN,
+    actualiza bitacora_yz_quant.csv y ejecuta el diagnóstico estadístico estilo Fisher.
     """
     df_picks = pd.read_csv(archivo_picks_dia)
     df_picks.columns = [c.strip() for c in df_picks.columns]
@@ -162,13 +177,39 @@ def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
     df_total.to_csv(ARCHIVO_BITACORA, index=False)
     print(f"[OK] {len(df_nuevo)} selecciones auditadas y guardadas en {ARCHIVO_BITACORA} (Total acumulado: {len(df_total)}).")
 
-    if len(df_total) >= 10:
-        print("\n--- RESUMEN DIAGNÓSTICO ACUMULADO ---")
-        print(f"Brier Score Global: {df_total['Brier_Score'].mean():.4f}")
-        print(f"Tasa Acierto Real:  {df_total['Acierto'].mean()*100:.1f}% vs Prob Media Estimada: {df_total['Prob_Estimada'].mean()*100:.1f}%")
-        print("\nPor Estado de Carga (USAGE AUTO vs NORMAL):")
+    # --- DIAGNÓSTICO ESTADÍSTICO ESTILO FISHER ---
+    n_total = len(df_total)
+    if n_total >= 5:
+        aciertos = int(df_total["Acierto"].sum())
+        tasa_real = aciertos / n_total
+
+        cuotas_validas = pd.to_numeric(df_total["Cuota"], errors="coerce").dropna()
+        cuotas_validas = cuotas_validas[cuotas_validas > 1.0]
+        prob_casa = float((1.0 / cuotas_validas).mean()) if not cuotas_validas.empty else (1.0 / 1.27)
+
+        p_val = prueba_exacta_fisher_binomial(aciertos, n_total, prob_casa)
+        veredicto_h0 = (
+            "✅ H0 REFUTADA (p < 0.05): Ventaja estadísticamente significativa sobre la casa."
+            if p_val < 0.05
+            else f"⏳ Muestra en construcción (necesitas p < 0.05; actual p = {p_val:.4f})."
+        )
+
+        print("\n--- RESUMEN DIAGNÓSTICO ACUMULADO (YZ QUANT NBA) ---")
+        print(f"Aciertos Acumulados:   {aciertos}/{n_total} ({tasa_real*100:.1f}%)")
+        print(f"Prob. Implícita Casa:  {prob_casa*100:.1f}% (Cuota media @{1/prob_casa:.2f})")
+        print(f"Prob. Media Modelo:    {df_total['Prob_Estimada'].mean()*100:.1f}% | Brier Score: {df_total['Brier_Score'].mean():.4f}")
+        print(f"Test Binomial Fisher:  Valor p = {p_val:.4f} -> {veredicto_h0}")
+
+        print("\n[Grupo Control vs. Intervención] USAGE AUTO (+8%) vs. NORMAL:")
         print(df_total.groupby("Estado_Carga")[["Acierto", "Prob_Estimada", "Residuo_Z"]].mean().round(3))
-        print("\nImpacto de Blowouts (|Margen| >= 15 pts):")
+
+        print("\n[Análisis por Varianza] Estabilidad ALTA vs. ESTANDAR:")
+        print(df_total.groupby("Estabilidad")[["Acierto", "Prob_Estimada", "Residuo_Z"]].mean().round(3))
+
+        print("\n[Rendimiento por Mercado]:")
+        print(df_total.groupby("Mercado")[["Acierto", "Prob_Estimada", "Residuo_Z"]].mean().round(3))
+
+        print("\n[Impacto de Blowouts (|Margen| >= 15 pts)]:")
         print(df_total.groupby("Blowout_15plus")[["Acierto", "Diff_Min", "Residuo_Z"]].mean().round(3))
 
 
