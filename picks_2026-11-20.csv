@@ -1,7 +1,7 @@
-Fecha,Boleto,Jugador,Equipo,Rival,Mercado,Linea,Cuota,Stake
-2026-11-20,Combinada A,Luka Doncic,LAL,SAC,PRA,44.5,1.32,10000
-2026-11-20,Combinada A,Shai Gilgeous-Alexander,OKC,NO,PRA,34.5,1.27,10000
-2026-11-20,Combinada A,Franz Wagner,ORL,BKN,AST,5.5,1.28,10000
-2026-11-20,Combinada B,Anthony Davis,WSH,CHI,PRA,29.5,1.25,5000
-2026-11-20,Combinada B,Desmond Bane,ORL,BKN,3PT,2.5,1.35,5000
-2026-11-20,Combinada B,Nikola Jokic,DEN,HOU,PRA,39.5,1.27,5000
+Fecha,Boleto,Jugador,Equipo,Rival,Mercado,Linea,Cuota,Stake,Proy_Modelo,Varianza_std,Prob_Estimada,Minutos_L10,Estado_Carga,Estabilidad
+2026-11-20,Combinada A,Luka Doncic,LAL,SAC,PRA,44.5,1.32,10000,55.2,7.62,0.920,36.8,USAGE AUTO (+8%),ESTANDAR
+2026-11-20,Combinada A,Shai Gilgeous-Alexander,OKC,NO,PRA,34.5,1.27,10000,44.2,6.48,0.933,34.2,NORMAL,ALTA
+2026-11-20,Combinada A,Franz Wagner,ORL,BKN,AST,5.5,1.28,10000,9.5,2.50,0.911,35.4,NORMAL,ALTA
+2026-11-20,Combinada B,Anthony Davis,WSH,CHI,PRA,29.5,1.25,5000,40.4,8.61,0.897,33.5,NORMAL,ESTANDAR
+2026-11-20,Combinada B,Desmond Bane,ORL,BKN,3PT,2.5,1.35,5000,4.8,2.50,0.857,36.6,NORMAL,ALTA
+2026-11-20,Combinada B,Nikola Jokic,DEN,HOU,PRA,39.5,1.27,5000,43.5,4.27,0.826,35.9,NORMAL,ALTA
