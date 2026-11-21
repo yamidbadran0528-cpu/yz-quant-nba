@@ -1,0 +1,7 @@
+Fecha,Boleto,Jugador,Equipo,Rival,Mercado,Linea,Cuota,Stake,Proy_Modelo,Varianza_std,Prob_Estimada,Minutos_L10,Estado_Carga,Estabilidad
+2026-11-21,Combinada A,Tyrese Maxey,PHI,MIL,PTS,19.5,1.30,5365,26.1,5.94,0.867,35.1,USAGE AUTO (+8%),ALTA
+2026-11-21,Combinada A,Domantas Sabonis,SAC,BOS,REB,8.5,1.26,5365,11.6,6.52,0.817,31.7,NORMAL,ESTANDAR
+2026-11-21,Combinada A,Kyrie Irving,DAL,LAC,PTS,17.5,1.30,5365,25.5,10.14,0.785,32.4,NORMAL,ESTANDAR
+2026-11-21,Combinada B,Jalen Brunson,NY,POR,PTS,21.5,1.23,5350,27.0,5.06,0.861,34.0,NORMAL,ALTA
+2026-11-21,Combinada B,Cooper Flagg,DAL,LAC,PRA,29.5,1.18,5350,38.9,9.64,0.835,34.5,NORMAL,ESTANDAR
+2026-11-21,Combinada B,Victor Wembanyama,SA,NO,PRA,39.5,1.42,5350,47.7,11.89,0.754,28.8,USAGE AUTO (+8%),ESTANDAR
