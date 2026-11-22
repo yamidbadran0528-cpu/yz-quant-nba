@@ -1,0 +1,7 @@
+Fecha,Boleto,Jugador,Equipo,Rival,Mercado,Linea,Cuota,Stake,Proy_Modelo,Varianza_std,Prob_Estimada,Minutos_L10,Estado_Carga,Estabilidad
+2026-11-22,Combinada A,Franz Wagner,ORL,WSH,PRA,34.5,1.37,5514,45.3,8.51,0.898,37.9,NORMAL,ESTANDAR
+2026-11-22,Combinada A,Jalen Brunson,NY,IND,PTS,21.5,1.25,5514,27.7,5.02,0.892,34.1,NORMAL,ALTA
+2026-11-22,Combinada A,Nikola Jokic,DEN,CHI,PTS,21.5,1.40,5514,25.9,4.09,0.859,36.7,NORMAL,ALTA
+2026-11-22,Combinada B,Anthony Davis,WSH,ORL,PRA,29.5,1.25,5513,40.2,9.29,0.875,34.5,NORMAL,ESTANDAR
+2026-11-22,Combinada B,Kyrie Irving,DAL,UTAH,3PT,1.5,1.19,5513,3.4,9.22,0.853,32.4,NORMAL,ESTANDAR
+2026-11-22,Combinada B,Jamal Murray,DEN,CHI,PRA,29.5,1.38,5513,37.7,9.64,0.803,35.6,NORMAL,ESTANDAR
