@@ -2,8 +2,8 @@ name: Actualizador Diario YZ Quant NBA
 
 on:
   schedule:
-    # Se ejecuta automáticamente todos los días a las 14:03 UTC (9:03 AM hora Colombia)
-    - cron: '03 14 * * *'
+    # Se ejecuta automáticamente todos los días a las 13:17 UTC (8:17 AM hora Colombia)
+    - cron: '17 13 * * *'
   workflow_dispatch: # Permite ejecutarlo manualmente desde GitHub cuando quieras con 1 clic
 
 permissions:
@@ -41,6 +41,4 @@ jobs:
           if [ -f bitacora_yz_quant.csv ]; then
             git add bitacora_yz_quant.csv
           fi
-          git diff --staged --quiet || git commit -m "🤖 Auto-update: Estadísticas NBA y auditoría diaria"
-          git pull --rebase origin main
-          git push
+          git diff --staged --quiet || (git commit -m "🤖 Auto-update: Estadísticas NBA y auditoría diaria" && git pull --rebase origin main && git push)
