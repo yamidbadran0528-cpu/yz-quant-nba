@@ -1,0 +1,7 @@
+Fecha,Boleto,Jugador,Equipo,Rival,Mercado,Linea,Cuota,Stake,Proy_Modelo,Varianza_std,Prob_Estimada,Minutos_L10,Estado_Carga,Estabilidad
+2026-11-25,Combinada A,Julius Randle,BKN,MIL,PRA,24.5,1.16,500,32.3,6.11,0.900,32.6,USAGE_AUTO,ALTA
+2026-11-25,Combinada A,Devin Booker,PHX,HOU,PTS,17.5,1.24,500,24.4,5.56,0.893,34.4,NORMAL,ALTA
+2026-11-25,Combinada A,Darius Garland,LAC,MEM,PRA,24.5,1.41,500,30.6,4.95,0.891,33.5,NORMAL,ALTA
+2026-11-25,Combinada B,Moussa Diabate,CHA,CHI,REB,7.5,1.19,500,11.5,5.03,0.886,30.2,USAGE_AUTO,ALTA
+2026-11-25,Combinada B,Kevin Durant,HOU,PHX,PTS,17.5,1.44,500,21.9,4.11,0.858,33.5,NORMAL,ALTA
+2026-11-25,Combinada B,Deni Avdija,POR,SA,PTS,17.5,1.26,500,24.0,6.15,0.854,32.9,USAGE_AUTO,ALTA
