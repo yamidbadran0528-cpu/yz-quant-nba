@@ -1,7 +1,8 @@
 import math
 import os
+import re
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
@@ -108,11 +109,15 @@ def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
     fecha_espn = fecha_objetivo.replace("-", "")
     stats_obs, margenes = obtener_boxscores_fecha(fecha_espn)
 
+    if not stats_obs:
+        print(f"[INFO] Sin boxscores finalizados en ESPN para {fecha_objetivo}.")
+        return
+
     registros = []
     for _, row in df_picks.iterrows():
         key = normalizar_nombre(str(row["Jugador"]))
         if key not in stats_obs:
-            print(f"[AVISO] No se encontró boxscore para: {row['Jugador']}")
+            print(f"[AVISO] No se encontró boxscore para: {row['Jugador']} ({fecha_objetivo})")
             continue
 
         obs = stats_obs[key]
@@ -166,6 +171,10 @@ def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
             "Residuo_Z": residuo_z,
         })
 
+    if not registros:
+        print(f"[AVISO] No se pudo cruzar ningún jugador de {archivo_picks_dia}.")
+        return
+
     df_nuevo = pd.DataFrame(registros)
     if os.path.exists(ARCHIVO_BITACORA):
         df_hist = pd.read_csv(ARCHIVO_BITACORA)
@@ -175,7 +184,7 @@ def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
 
     df_total.drop_duplicates(subset=["Fecha", "Jugador", "Mercado", "Linea"], keep="last", inplace=True)
     df_total.to_csv(ARCHIVO_BITACORA, index=False)
-    print(f"[OK] {len(df_nuevo)} selecciones auditadas y guardadas en {ARCHIVO_BITACORA} (Total acumulado: {len(df_total)}).")
+    print(f"[OK] {len(df_nuevo)} selecciones de {fecha_objetivo} auditadas en {ARCHIVO_BITACORA} (Total acumulado: {len(df_total)}).")
 
     # --- DIAGNÓSTICO ESTADÍSTICO ESTILO FISHER ---
     n_total = len(df_total)
@@ -213,9 +222,40 @@ def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
         print(df_total.groupby("Blowout_15plus")[["Acierto", "Diff_Min", "Residuo_Z"]].mean().round(3))
 
 
+def obtener_fechas_auditadas() -> set[str]:
+    if not os.path.exists(ARCHIVO_BITACORA):
+        return set()
+    df_hist = pd.read_csv(ARCHIVO_BITACORA)
+    if "Fecha" not in df_hist.columns:
+        return set()
+    return set(df_hist["Fecha"].astype(str).str.strip())
+
+
 if __name__ == "__main__":
-    ayer = (datetime.now(ZONA_HORARIA) - timedelta(days=1)).strftime("%Y-%m-%d")
-    if os.path.exists(f"picks_{ayer}.csv"):
-        auditar_picks(f"picks_{ayer}.csv", ayer)
+    fecha_manual = os.getenv("FECHA_AUDITORIA", "").strip()
+    if fecha_manual:
+        archivo = f"picks_{fecha_manual}.csv"
+        if os.path.exists(archivo):
+            auditar_picks(archivo, fecha_manual)
+        else:
+            print(f"[INFO] No existe '{archivo}' para la fecha manual indicada.")
     else:
-        print(f"[INFO] Crea 'picks_{ayer}.csv' para ejecutar la auditoría automática.")
+        hoy = datetime.now(ZONA_HORARIA).strftime("%Y-%m-%d")
+        fechas_auditadas = obtener_fechas_auditadas()
+        pendientes = []
+
+        for nombre in sorted(os.listdir(".")):
+            m = re.match(r"^picks_(\d{4}-\d{2}-\d{2})\.csv$", nombre)
+            if not m:
+                continue
+            fecha_archivo = m.group(1)
+            # Solo audita jornadas ya concluidas (< hoy) que aún no estén en la bitácora
+            if fecha_archivo < hoy and fecha_archivo not in fechas_auditadas:
+                pendientes.append((fecha_archivo, nombre))
+
+        if pendientes:
+            for fecha_archivo, nombre in pendientes:
+                print(f"[INFO] Auditando jornada pendiente: {nombre}...")
+                auditar_picks(nombre, fecha_archivo)
+        else:
+            print("[INFO] Sin jornadas pendientes por auditar.")
