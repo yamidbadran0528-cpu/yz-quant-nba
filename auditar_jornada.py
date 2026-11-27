@@ -184,7 +184,7 @@ def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
 
     df_total.drop_duplicates(subset=["Fecha", "Jugador", "Mercado", "Linea"], keep="last", inplace=True)
     df_total.to_csv(ARCHIVO_BITACORA, index=False)
-    print(f"[OK] {len(df_nuevo)} selecciones de {fecha_objetivo} auditadas en {ARCHIVO_BITACORA} (Total acumulado: {len(df_total)}).")
+    print(f"[OK] {len(df_nuevo)} selecciones auditadas y guardadas en {ARCHIVO_BITACORA} (Total acumulado: {len(df_total)}).")
 
     # --- DIAGNÓSTICO ESTADÍSTICO ESTILO FISHER ---
     n_total = len(df_total)
@@ -232,30 +232,21 @@ def obtener_fechas_auditadas() -> set[str]:
 
 
 if __name__ == "__main__":
-    fecha_manual = os.getenv("FECHA_AUDITORIA", "").strip()
-    if fecha_manual:
-        archivo = f"picks_{fecha_manual}.csv"
-        if os.path.exists(archivo):
-            auditar_picks(archivo, fecha_manual)
-        else:
-            print(f"[INFO] No existe '{archivo}' para la fecha manual indicada.")
+    hoy = datetime.now(ZONA_HORARIA).strftime("%Y-%m-%d")
+    fechas_auditadas = obtener_fechas_auditadas()
+    pendientes = []
+
+    for nombre in sorted(os.listdir(".")):
+        m = re.match(r"^picks_(\d{4}-\d{2}-\d{2})\.csv$", nombre)
+        if not m:
+            continue
+        fecha_archivo = m.group(1)
+        if fecha_archivo < hoy and fecha_archivo not in fechas_auditadas:
+            pendientes.append((fecha_archivo, nombre))
+
+    if pendientes:
+        for fecha_archivo, nombre in pendientes:
+            print(f"[INFO] Auditando jornada pendiente: {nombre}...")
+            auditar_picks(nombre, fecha_archivo)
     else:
-        hoy = datetime.now(ZONA_HORARIA).strftime("%Y-%m-%d")
-        fechas_auditadas = obtener_fechas_auditadas()
-        pendientes = []
-
-        for nombre in sorted(os.listdir(".")):
-            m = re.match(r"^picks_(\d{4}-\d{2}-\d{2})\.csv$", nombre)
-            if not m:
-                continue
-            fecha_archivo = m.group(1)
-            # Solo audita jornadas ya concluidas (< hoy) que aún no estén en la bitácora
-            if fecha_archivo < hoy and fecha_archivo not in fechas_auditadas:
-                pendientes.append((fecha_archivo, nombre))
-
-        if pendientes:
-            for fecha_archivo, nombre in pendientes:
-                print(f"[INFO] Auditando jornada pendiente: {nombre}...")
-                auditar_picks(nombre, fecha_archivo)
-        else:
-            print("[INFO] Sin jornadas pendientes por auditar.")
+        print("[INFO] Sin jornadas pendientes por auditar.")
