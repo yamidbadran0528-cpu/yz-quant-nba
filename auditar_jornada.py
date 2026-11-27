@@ -21,6 +21,34 @@ def normalizar_nombre(texto: str) -> str:
     return norm.lower().replace(".", "").strip()
 
 
+def parse_num(valor, default: float = 0.0) -> float:
+    """Convierte valores de ESPN a float de forma segura (maneja '--', ':', vacíos, etc.)."""
+    if valor is None:
+        return default
+    s = str(valor).strip()
+    if s in ("", "--", "-", "DNP", "N/A", "nan", "None"):
+        return default
+    if ":" in s:
+        s = s.split(":")[0].strip()
+    try:
+        return float(s)
+    except ValueError:
+        return default
+
+
+def parse_split_part(valor, idx: int, default: float = 0.0) -> float:
+    """Extrae aciertos (idx=0) o intentos (idx=-1) en cadenas 'aciertos-intentos' o '--'."""
+    if valor is None:
+        return default
+    s = str(valor).strip()
+    if s in ("", "--", "-", "N/A", "nan", "None"):
+        return default
+    partes = s.split("-")
+    if len(partes) < 2:
+        return parse_num(s, default)
+    return parse_num(partes[idx], default)
+
+
 def prueba_exacta_fisher_binomial(aciertos: int, total: int, prob_h0: float) -> float:
     """
     Calcula el Valor p exacto unilateral (cola superior) bajo la hipótesis nula H0:
@@ -72,15 +100,14 @@ def obtener_boxscores_fecha(fecha_yyyymmdd: str) -> tuple[dict, dict]:
                 if not nombre or len(vals) != len(labels):
                     continue
                 m = dict(zip(labels, vals))
-                min_raw = str(m.get("MIN", "0"))
-                mins = float(min_raw.split(":")[0]) if ":" in min_raw else float(min_raw)
-                pts = float(m.get("PTS", 0))
-                reb = float(m.get("REB", 0))
-                ast = float(m.get("AST", 0))
-                tpt = float(str(m.get("3PT", "0-0")).split("-")[0])
-                tpa = float(str(m.get("3PT", "0-0")).split("-")[-1])
-                fga = float(str(m.get("FG", "0-0")).split("-")[-1])
-                fta = float(str(m.get("FT", "0-0")).split("-")[-1])
+                mins = parse_num(m.get("MIN", "0"))
+                pts = parse_num(m.get("PTS", 0))
+                reb = parse_num(m.get("REB", 0))
+                ast = parse_num(m.get("AST", 0))
+                tpt = parse_split_part(m.get("3PT", "0-0"), 0)
+                tpa = parse_split_part(m.get("3PT", "0-0"), -1)
+                fga = parse_split_part(m.get("FG", "0-0"), -1)
+                fta = parse_split_part(m.get("FT", "0-0"), -1)
 
                 stats_jugadores[normalizar_nombre(nombre)] = {
                     "Equipo": eq,
@@ -184,7 +211,7 @@ def auditar_picks(archivo_picks_dia: str, fecha_objetivo: str):
 
     df_total.drop_duplicates(subset=["Fecha", "Jugador", "Mercado", "Linea"], keep="last", inplace=True)
     df_total.to_csv(ARCHIVO_BITACORA, index=False)
-    print(f"[OK] {len(df_nuevo)} selecciones auditadas y guardadas en {ARCHIVO_BITACORA} (Total acumulado: {len(df_total)}).")
+    print(f"[OK] {len(df_nuevo)} selecciones de {fecha_objetivo} auditadas en {ARCHIVO_BITACORA} (Total acumulado: {len(df_total)}).")
 
     # --- DIAGNÓSTICO ESTADÍSTICO ESTILO FISHER ---
     n_total = len(df_total)
